@@ -180,7 +180,7 @@ So far we have completed the build environment preparation. You are great!
 
 Download the source code of PuttyGPT by runing the below command in c:\gpt
 ```
-git clone https://github.com/wochatme/puttyGPT.git
+git clone https://github.com/wochatme/PuttyGPT.git
 ```
 
 Git will create a folder called "puttyGPT" in c:\gpt. Use any text editor you like to edit c:\gpt\puttyGPT\windows\CMakeLists.txt. Search "add_executable(putty", and it should in line 99 or nearby. You can see the below texts:

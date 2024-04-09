@@ -77,7 +77,7 @@ Makefile
 /charset/sbcsdat.c
 /contrib/cygtermd/cygtermd.exe
 /doc/*.html
-/doc/*.txt
+/doc/puttydoc.txt
 /doc/*.cnt
 /doc/*.hlp
 /doc/*.gid
