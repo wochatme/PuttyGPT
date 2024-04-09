@@ -183,10 +183,10 @@ Download the source code of PuttyGPT by runing the below command in c:\gpt
 git clone https://github.com/wochatme/PuttyGPT.git
 ```
 
-Git will create a folder called "puttyGPT" in c:\gpt. Use any text editor you like to edit c:\gpt\puttyGPT\windows\CMakeLists.txt. Search "add_executable(putty", and it should in line 99 or nearby. You can see the below texts:
+Git will create a folder called "PuttyGPT" in c:\gpt. Use any text editor you like to open c:\gpt\PuttyGPT\windows\CMakeLists.txt. Search "add_executable(puttygpt", you can see the below texts:
 ```
 add_executable(puttygpt
-  window.c
+  window_gpt.c
   putty.c
   help.c
   putty.rc)
@@ -195,19 +195,15 @@ target_include_directories(puttygpt PUBLIC c:/gpt/vcpkg/packages/curl_x64-window
 target_include_directories(puttygpt PUBLIC c:/gpt/vcpkg/packages/cjson_x64-windows-static/include)
 target_include_directories(puttygpt PUBLIC c:/gpt/scintilla/include)
 
-target_link_libraries(puttygpt debug c:/build/askrob/scintilla/Debug/scintilla.lib)
-target_link_libraries(puttygpt optimized c:/build/askrob/scintilla/MinSizeRel/scintilla.lib)
-
 target_link_libraries(puttygpt debug c:/gpt/vcpkg/packages/curl_x64-windows-static/debug/lib/libcurl-d.lib)
 target_link_libraries(puttygpt debug c:/gpt/vcpkg/packages/zlib_x64-windows-static/debug/lib/zlibd.lib)
 target_link_libraries(puttygpt debug c:/gpt/vcpkg/packages/cjson_x64-windows-static/debug/lib/cjson.lib)
-# target_link_libraries(puttygpt debug c:/gpt/scintilla/bin/libscintilla.lib)
+target_link_libraries(puttygpt debug c:/gpt/scintilla/bin/libscintilla.lib)
 
 target_link_libraries(puttygpt optimized c:/gpt/vcpkg/packages/curl_x64-windows-static/lib/libcurl.lib)
 target_link_libraries(puttygpt optimized c:/gpt/vcpkg/packages/zlib_x64-windows-static/lib/zlib.lib)
 target_link_libraries(puttygpt optimized c:/gpt/vcpkg/packages/cjson_x64-windows-static/lib/cjson.lib)
-# target_link_libraries(puttygpt optimized c:/gpt/scintilla/bin/libscintilla.lib)
-
+target_link_libraries(puttygpt optimized c:/gpt/scintilla/bin/libscintilla.lib)
 
 be_list(puttygpt PuTTY SSH SERIAL OTHERBACKENDS)
 add_dependencies(puttygpt generated_licence_h)
@@ -221,10 +217,7 @@ set_target_properties(puttygpt PROPERTIES
 installed_program(puttygpt)
 ```
 
-You need to change the path in target_include_directories and target_link_libraries instructions according to your environment.
-
-
-In "x64 Native Tools Command Prompt for VSTS 2022" window, run the below commands:
+You need to change the path in target_include_directories and target_link_libraries instructions according to your environment. After you modify the path to point to the correct header file directory and libraries of libcurl, zlib, cJSON and scintillia, in "x64 Native Tools Command Prompt for VSTS 2022" window, run the below commands:
 ```
 cd c:\gpt\puttyGPT
 cmake -S . -B release -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=MinSizeRel
@@ -232,7 +225,105 @@ cd release
 nmake
 ```
 
-## Get the Source Code of Putty
+After the building is done, you can see the puttygpt.exe:
+```
+...
+c:\gpt\PuttyGPT\release>dir putty*.exe
+ 
+04/08/2024  06:03 PM           830,464 putty.exe
+04/08/2024  06:03 PM           287,232 puttygen.exe
+04/08/2024  06:03 PM         2,085,888 puttygpt.exe   <------- THIS IS WHAT WE WANT!!!!!!!!!!!!!!!!!
+04/08/2024  06:03 PM           409,600 puttytel.exe
+...
+```
+
+Then you can run puttygpt.exe! If you successfully build everything, that is awesome! Congratulation!
+
+### The Configuration File
+
+When it is the first time for PuttyGPT to run, it will check if there is a configuration file called conf.json in the same directory. If it cannot find this file, putty.exe will generate a conf.json file filled with the default parameters, as showed in the below:
+
+```
+c:\gpt\PuttyGPT\release>type conf.json
+{
+"key" : "03339A1C8FDB6AFF46845E49D120E0400021E161B6341858585C2E25CA3D9C01CA",
+"url" : "https://www.wochat.org/v1",
+"font0" : "Courier New",
+"font1" : "Courier New",
+"fsize0" : 11,
+"fsize1" : 11,
+"startchat" : 1,
+"autologging" : 1,
+"proxy_type" : 0,
+"proxy" : ""
+}
+```
+
+In the above parameter steetings, the most important thing is the "key". wochat.org will use this key value to identify the user. The default key is a free-for-ever key you can try. Or you can go to https://www.wochat.org to register a new account and generate a new key to get more professional service.
+
+Let me explain the meanings of other parameters:
+- url : this is the interface where PuttyGPT will send the request to. Usually you know not need to change it.
+- font0 : the font name of the chat window. This is the upper window in the robot chat window.
+- font1 : the font name of the input window. This is the lower window in the robot chat window where you can input your question.
+- fsize0 : the font size for font0. 11 is a good default value. But you can enlarge it to 13 or 36 to try to get the best size you like.
+- fsize1 : the font size for font1.
+- startchat : if this parameter is 0, the robot chat window will not pop up when you start PuttyGPT. None-zero value means the robot chat window will pop out when you connect to your server. 
+- autologging: if this parameter is 0, PuttyGPT will not save all the chat history into the log files like log_xxxx.txt. None-zero value will record all the chat history.
+
+If you connect to the internet by using some proxy, you need to configure the below parameters:
+- proxy_type : The value is from 0 to 8. Zero means no proxy. This is the common case. 
+- proxy : if proxy_type is non-zero, we will use these parameters to configure your proxy settings. 
+
+For better understanding for proxy settings, please check the below link as a good start point:
+
+https://curl.se/libcurl/c/CURLOPT_PROXYTYPE.html
+
+You can also check the below code in askrob.h:
+```
+        if (g_proxy_type && strlen(g_proxy) > 0)
+        {
+            long pxtype = CURLPROXY_HTTP;
+            switch (g_proxy_type)
+            {
+            case 1:
+                pxtype = CURLPROXY_HTTP;
+                break;
+            case 2:
+                pxtype = CURLPROXY_HTTP_1_0;
+                break;
+            case 3:
+                pxtype = CURLPROXY_HTTPS;
+                break;
+            case 4:
+                pxtype = CURLPROXY_HTTPS2;
+                break;
+            case 5:
+                pxtype = CURLPROXY_SOCKS4;
+                break;
+            case 6:
+                pxtype = CURLPROXY_SOCKS5;
+                break;
+            case 7:
+                pxtype = CURLPROXY_SOCKS4A;
+                break;
+            case 8:
+                pxtype = CURLPROXY_SOCKS5_HOSTNAME;
+                break;
+            default:
+                break;
+            }
+            curl_easy_setopt(curl, CURLOPT_PROXYTYPE, pxtype);
+            curl_easy_setopt(curl, CURLOPT_PROXY, g_proxy);
+        }
+```
+Then you can check the document of libcurl to understand how to set "proxy_type" and "proxy" in conf.json. After you change the values of conf.json, you need to restart PuttyGPT to make these changes effective.
+
+
+## Build the Source Code of Putty
+
+Well, you may not trust the source code of PuttyGPT, but you trust the source code of Putty, right? This section will guide you how to build PuttyGPT from the source code of Putty.
+
+### Get the Source Code of Putty
 
 You can download the source code of Putty from here:
 
@@ -246,25 +337,9 @@ In order to verify the source code is from the original author, you can refer th
 
 https://www.chiark.greenend.org.uk/~sgtatham/putty/keys.html
 
-The below content assumes that we trust the source code of putty-src.zip. Unzip this file into a folder. We will put all files for the whole building procedure in c:\gpt. Let us say the source code of Putty is unzipped into c:\gpt\putty. The initial file layout is like the below:
+The below content assumes that we trust the source code of putty-src.zip. Unzip this file into a folder. We will put all files for the whole building procedure in c:\gpt. Let us say the source code of Putty is unzipped into c:\gpt\putty. 
 
-```
-C:\gpt>dir
-
-04/06/2024  06:56 PM    <DIR>          .
-04/06/2024  06:56 PM    <DIR>          ..
-04/06/2024  06:56 PM    <DIR>          putty
-               0 File(s)              0 bytes
-               3 Dir(s)  273,311,477,760 bytes free
-```
-
-
-## Install Build Tools
-
-We need to use the Visual Studio 2022(community version) and CMake to build the source code of Putty. Because VSTS(Visual Studio) 2022 and CMake are both free. You can easily install them. There are tons of documents to describe how to install these two software, so we do not describe the steps to install these two tools.
-
-
-## Build Putty Source Code
+### Build Putty Source Code
 
 In the "x64 Native Tools Command Prompt for VSTS 2022" window, go to c:\gpt\putty, and run the below command
 ```
@@ -285,7 +360,7 @@ C:\gpt\putty\build_debug>dir putty.exe
 ```
 You can run the putty.exe by typing putty.exe in the same window or double click this file in file explorer. 
 
-Maybe you want to build a release version which has a smaller image size. Putty disable us to compile release verion from the source code. So remove the below texts from c:\gpt\putty\defs.h. These texts are located between line 14 to line 23 in defs.h. 
+Maybe you want to build a release version which has a smaller image size. Putty disable us to compile release verion from the source code. So please remove the below texts from c:\gpt\putty\defs.h. These texts are located between line 14 to line 23 in defs.h. 
 ```
 #ifdef NDEBUG
 /*
@@ -311,14 +386,11 @@ You can see the size difference of putty.exe in Debug and MinSizeRel mode:
 C:\gpt\putty>dir build_debug\putty.exe
  
 04/06/2024  07:22 PM         2,245,632 putty.exe
-               1 File(s)      2,245,632 bytes
-               0 Dir(s)  273,128,603,648 bytes free
 
 C:\gpt\putty>dir build_release\putty.exe
  
 04/06/2024  07:31 PM           826,880 putty.exe
-               1 File(s)        826,880 bytes
-               0 Dir(s)  273,128,599,552 bytes free
+
 ```
 
 As we can see that putt.exe i MinSizeRel mode is only 800KB, compared with the 2MB in Debug mode. 
@@ -326,14 +398,7 @@ As we can see that putt.exe i MinSizeRel mode is only 800KB, compared with the 2
 If you complete all the above steps successfully and get the binary file putty.exe. That is awesome! We know how to build the source code of Putty, and we trust the putty.exe compiled from the original source code of Putty. So the next step is how to add the new source code of puttyGPT into the codebase of Putty and build puttygpt.exe. Let's go!
 
 
-
-
-## Build PuttyGPT
-
-Now we have all necessary libraries ready, we can build PuttyGPT. The first thing is to download the repository of PuttyGPT into your local disk.
-```
-git clone https://github.com/wochatme/puttyGPT.git
-```
+### Merge the Source Code of PuttyGPT
 
 Now our disk layout looks like the below:
 ```
@@ -342,14 +407,14 @@ C:\gpt>dir
 04/06/2024  10:16 PM    <DIR>          .
 04/06/2024  10:16 PM    <DIR>          ..
 04/06/2024  07:25 PM    <DIR>          putty
-04/06/2024  10:16 PM    <DIR>          puttyGPT
+04/06/2024  10:16 PM    <DIR>          PuttyGPT
 04/06/2024  07:38 PM    <DIR>          scintilla
 04/06/2024  07:55 PM    <DIR>          vcpkg
                0 File(s)              0 bytes
                6 Dir(s)  278,965,551,104 bytes free
 ```
 
-The folder "putty" has the orginal source code of Putty that we trust. The folder "puttyGPT" has the new source code we need to merge into the codebase of Putty. Let me show you how to do the merge.
+The folder "putty" has the orginal source code of Putty that we trust. The folder "PuttyGPT" has the new source code we need to merge into the codebase of Putty. Let me show you how to do the merge.
 
 The first thing we need to be clear is what PuttyGPT added and what PuttyGPT changed.
 
@@ -363,6 +428,12 @@ C:\gpt\puttyGPT\windows\askrob>dir
 04/08/2024  07:13 AM             7,084 askrob_terminial.h
                2 File(s)         58,595 bytes
                2 Dir(s)  280,589,889,536 bytes free
+```
+We also added window_gpt.c which contains the WinMain() function for PuttyGPT.
+```
+c:\gpt\PuttyGPT\windows>dir window_gpt.c
+
+04/08/2024  06:00 PM           210,504 window_gpt.c
 ```
 
 And PuttyGPT also add 4 bitmap files as the buttons showing in the robot chat window:
@@ -378,9 +449,7 @@ C:\gpt\puttyGPT\windows>dir *.bmp
 ```
 
 What we changed in the codebase of Putty are the below files:
-
 ```
-C:\gpt\putty\windows\window.c
 C:\gpt\putty\windows\putty-rc.h
 C:\gpt\putty\windows\putty.rc
 C:\gpt\putty\terminal\terminal.c
@@ -390,141 +459,85 @@ You can use some compare tool such as "diff" on Linux to compare the above 4 fil
 
 After we are clear about what PuttyGPT added and modified, merge these changes into the codebase of Putty is pretty simple. Let me explain it in details.
 
-### Merge UI Resource
-
 Run the below commands to copy the bitmap resources to putty folder:
 ```
-C:\gpt\putty\windows>copy c:\gpt\puttyGPT\windows\*.bmp .
-c:\gpt\puttyGPT\windows\emptylog.bmp
-c:\gpt\puttyGPT\windows\question.bmp
-c:\gpt\puttyGPT\windows\savefile.bmp
-c:\gpt\puttyGPT\windows\settings.bmp
+c:\gpt\putty\windows>copy c:\gpt\PuttyGPT\windows\*.bmp .
+c:\gpt\PuttyGPT\windows\emptylog.bmp
+c:\gpt\PuttyGPT\windows\question.bmp
+c:\gpt\PuttyGPT\windows\savefile.bmp
+c:\gpt\PuttyGPT\windows\settings.bmp
         4 file(s) copied.
 ```
-
-Edit the putty.rc file in c:\gpt\putty\windows folder, and add the below texts in it, at around line 10:
+Copy the folder "askrob" from PuttyGPT to Putty
 ```
-IDB_QUESTION     BITMAP     "question.bmp"
-IDB_SAVEFILE     BITMAP     "savefile.bmp"
-IDB_EMPTYLOG     BITMAP     "emptylog.bmp"
-IDB_SETTINGS     BITMAP     "settings.bmp"
-```
-
-Edit putty-rc.h file in c:\gpt\putty\windows folder, and add the below texts in it, at around line 11:
-```
-/* AskRob */
-#define IDB_QUESTION     300
-#define IDB_SAVEFILE     301
-#define IDB_EMPTYLOG     302
-#define IDB_SETTINGS     303
-```
-
-After the above modification, in c:\gpt\putty\build-debug, run nmake command to compile the whole codebase of putty to be sure there is no error after each modification. We can use this trick to check that everything looks good after a small modification.
-
-### Merge Source Code
-
-In c:\gpt\puttyGPT\windows, there is one folder called "raskrob", please copy the whole folder into c:\gpt\putty\windows
-```
-C:\gpt\putty\windows>mkdir askrob
-
-C:\gpt\putty\windows>cd askrob
-
-C:\gpt\putty\windows\askrob>copy c:\gpt\puttyGPT\windows\askrob\* .
-c:\gpt\puttyGPT\windows\askrob\askrob.h
-c:\gpt\puttyGPT\windows\askrob\askrob_terminial.h
+c:\gpt\putty\windows>mkdir askrob
+c:\gpt\putty\windows>cd askrob
+c:\gpt\putty\windows\askrob>copy c:\gpt\PuttyGPT\windows\askrob\* .
+c:\gpt\PuttyGPT\windows\askrob\askrob.h
+c:\gpt\PuttyGPT\windows\askrob\askrob_terminial.h
         2 file(s) copied.
 ```
 
-Then you can copy the below files into the codebase of Putty to overwrite the original files:
+Copy window_gpt.c from c:\gpt\PuttyGPT\windows to c:\gpt\putty\windows:
 ```
-C:\gpt\puttyGPT\windows\window.c
-C:\gpt\puttyGPT\windows\putty-rc.h
-C:\gpt\puttyGPT\windows\putty.rc
-C:\gpt\puttyGPT\terminal\terminal.c
+c:\gpt\putty\windows>copy c:\gpt\PuttyGPT\windows\window_gpt.c .
+        1 file(s) copied.
+
+```
+Copy the below files from PuttyGPT to overwrite the old files in Putty:
+```
+c:\gpt\putty\windows>copy c:\gpt\PuttyGPT\windows\putty.rc .
+Overwrite .\putty.rc? (Yes/No/All): Y
+        1 file(s) copied.
+
+c:\gpt\putty\windows>copy c:\gpt\PuttyGPT\windows\putty-rc.h .
+Overwrite .\putty-rc.h? (Yes/No/All): Y
+        1 file(s) copied.
+
+c:\gpt\putty\terminal>copy c:\gpt\PuttyGPT\terminal\terminal.c .
+Overwrite .\terminal.c? (Yes/No/All): Y
+        1 file(s) copied.        
 ```
 
-If you want to review what has been changed, please use "diff" or similar command to compare the files.
-
+If you want to review what has been changed, please use "diff" or similar command to compare these files.
 
 ### Edit CMakeList.txt
 
-Edit the CMakeList.txt in c:\gpt\putty\windows, and add the below lines at around line 105:
+Edit the CMakeList.txt in c:\gpt\putty\windows, and add the below lines at around line 115:
 ```
-add_executable(putty
-  window.c
+add_executable(puttygpt
+  window_gpt.c
   putty.c
   help.c
   putty.rc)
-################################## The below is we added #####################################
-target_include_directories(putty PUBLIC c:/gpt/vcpkg/packages/curl_x64-windows-static/include)
-target_include_directories(putty PUBLIC c:/gpt/vcpkg/packages/cjson_x64-windows-static/include)
-target_include_directories(putty PUBLIC c:/gpt/scintilla/include)
 
-target_link_libraries(putty debug c:/gpt/vcpkg/packages/curl_x64-windows-static/debug/lib/libcurl-d.lib)
-target_link_libraries(putty debug c:/gpt/vcpkg/packages/zlib_x64-windows-static/debug/lib/zlibd.lib)
-target_link_libraries(putty debug c:/gpt/vcpkg/packages/cjson_x64-windows-static/debug/lib/cjson.lib)
-target_link_libraries(putty debug c:/gpt/scintilla/bin/libscintilla.lib)
+target_include_directories(puttygpt PUBLIC c:/gpt/vcpkg/packages/curl_x64-windows-static/include)
+target_include_directories(puttygpt PUBLIC c:/gpt/vcpkg/packages/cjson_x64-windows-static/include)
+target_include_directories(puttygpt PUBLIC c:/gpt/scintilla/include)
 
-target_link_libraries(putty optimized c:/gpt/vcpkg/packages/curl_x64-windows-static/lib/libcurl.lib)
-target_link_libraries(putty optimized c:/gpt/vcpkg/packages/zlib_x64-windows-static/lib/zlib.lib)
-target_link_libraries(putty optimized c:/gpt/vcpkg/packages/cjson_x64-windows-static/lib/cjson.lib)
-target_link_libraries(putty optimized c:/gpt/scintilla/bin/libscintilla.lib)
-################################## The above is we added #####################################  
-be_list(putty PuTTY SSH SERIAL OTHERBACKENDS)
+target_link_libraries(puttygpt debug c:/gpt/vcpkg/packages/curl_x64-windows-static/debug/lib/libcurl-d.lib)
+target_link_libraries(puttygpt debug c:/gpt/vcpkg/packages/zlib_x64-windows-static/debug/lib/zlibd.lib)
+target_link_libraries(puttygpt debug c:/gpt/vcpkg/packages/cjson_x64-windows-static/debug/lib/cjson.lib)
+target_link_libraries(puttygpt debug c:/gpt/scintilla/bin/libscintilla.lib)
 
+target_link_libraries(puttygpt optimized c:/gpt/vcpkg/packages/curl_x64-windows-static/lib/libcurl.lib)
+target_link_libraries(puttygpt optimized c:/gpt/vcpkg/packages/zlib_x64-windows-static/lib/zlib.lib)
+target_link_libraries(puttygpt optimized c:/gpt/vcpkg/packages/cjson_x64-windows-static/lib/cjson.lib)
+target_link_libraries(puttygpt optimized c:/gpt/scintilla/bin/libscintilla.lib)
+
+be_list(puttygpt PuTTY SSH SERIAL OTHERBACKENDS)
+add_dependencies(puttygpt generated_licence_h)
+target_link_libraries(puttygpt
+  guiterminal guimisc eventloop sshclient otherbackends settings network crypto
+  utils
+  ${platform_libraries})
+set_target_properties(puttygpt PROPERTIES
+  WIN32_EXECUTABLE ON
+  LINK_FLAGS "${LFLAG_MANIFEST_NO}")
+installed_program(puttygpt)
 ```
 You can modify the path according to your environment.
 
-And please comment out the below content or remove them.
-```
-# add_executable(puttytel
-#   window.c
-#   putty.c
-#   help.c
-#   ${CMAKE_SOURCE_DIR}/stubs/no-gss.c
-#   ${CMAKE_SOURCE_DIR}/stubs/no-ca-config.c
-#   ${CMAKE_SOURCE_DIR}/stubs/no-rand.c
-#   ${CMAKE_SOURCE_DIR}/proxy/nocproxy.c
-#   ${CMAKE_SOURCE_DIR}/proxy/nosshproxy.c
-#   puttytel.rc)
-
-# be_list(puttytel PuTTYtel SERIAL OTHERBACKENDS)
-# add_dependencies(puttytel generated_licence_h)
-# target_link_libraries(puttytel
-#   guiterminal guimisc eventloop otherbackends settings network utils
-#   ${platform_libraries})
-# set_target_properties(puttytel PROPERTIES
-#   WIN32_EXECUTABLE ON
-#   LINK_FLAGS "${LFLAG_MANIFEST_NO}")
-# installed_program(puttytel)
-```
-
-And please remove the below content. We only want to build putty.exe, we are not interested in the puttytel.exe and pterm.exe build.
-```
-if(HAVE_CONPTY)
-  add_executable(pterm
-    window.c
-    pterm.c
-    help.c
-    conpty.c
-    ${CMAKE_SOURCE_DIR}/stubs/no-gss.c
-    ${CMAKE_SOURCE_DIR}/stubs/no-ca-config.c
-    ${CMAKE_SOURCE_DIR}/stubs/no-rand.c
-    ${CMAKE_SOURCE_DIR}/proxy/nosshproxy.c
-    pterm.rc)
-  be_list(pterm pterm)
-  add_dependencies(pterm generated_licence_h)
-  target_link_libraries(pterm
-    guiterminal guimisc eventloop settings network utils
-    ${platform_libraries})
-  set_target_properties(pterm PROPERTIES
-    WIN32_EXECUTABLE ON
-    LINK_FLAGS "${LFLAG_MANIFEST_NO}")
-  installed_program(pterm)
- else()
-  message("ConPTY not available; cannot build Windows pterm")
- endif()
- ```
 
 ### Build It!
 
@@ -535,61 +548,14 @@ cd puttygpt
 nmake
 ```
 
-After a while, we can see the putty.exe in c:\gpt\putty\puttygpt:
+After a while, we can see the puttygpt.exe in c:\gpt\putty\puttygpt:
 ```
-C:\gpt\putty\puttygpt>dir putty.exe
- 
-04/06/2024  11:17 PM         2,198,016 putty.exe
-               1 File(s)      2,198,016 bytes
-               0 Dir(s)  278,985,723,904 bytes free
-```
+c:\gpt\putty\puttygpt>dir puttygpt.exe
+ Directory of c:\gpt\putty\puttygpt
 
-What you need to do is to rename this file to puttygtp.exe:
-```
-C:\gpt\putty\puttygpt>rename putty.exe puttygpt.exe
-C:\gpt\putty\puttygpt>puttygpt.exe                      <-- RUN IT!!!!!!
+04/08/2024  06:28 PM         2,085,888 puttygpt.exe
 ```
 
-When it is the first time for PuttyGPT to run, it will check if there is a configuration file called conf.json in the same directory. If it cannot find this file, putty.exe will generate a conf.json file filled with the default parameters, as showed in the below:
-
-```
-C:\gpt\putty\puttygpt>type conf.json
-{
-"key" : "03339A1C8FDB6AFF46845E49D120E0400021E161B6341858585C2E25CA3D9C01CA",
-"url" : "https://www.wochat.org/v1",
-"font0" : "Courier New",
-"font1" : "Courier New",
-"fsize0" : 11,
-"fsize1" : 11,
-"startchat" : 1,
-"autologging" : 1,
-"proxy" : 0,
-"user" : "x",
-"password" : "x",
-"domain" : "x",
-"host" : "localhost",
-"port" : 443
-}
-```
-
-In the above parameter steetings, the most important thing is the "key". wochat.org will use this key value to identify the user. The default key is a free-for-ever key you can try. Or you can go to https://www.wochat.org to register a new account and generate a new key to get more professional service.
-
-Let me explain the meanings of other parameters:
-- url : this is the interface where PuttyGPT will send the request to. Usually you know not need to change it.
-- font0 : the font name of the chat window. This is the upper window in the robot chat window.
-- font1 : the font name of the input window. This is the lower window in the robot chat window where you can input your question.
-- fsize0 : the font size for font0. 11 is a good default value. But you can enlarge it to 13 or 36 to try to get the best size you like.
-- fsize1 : the font size for font1.
-- startchat : if this parameter is 0, the robot chat window will not pop up when you start PuttyGPT. None-zero value means the robot chat window will pop out when you connect to your server. 
-- autologging: if this parameter is 0, PuttyGPT will not save all the chat history into the log files like log_xxxx.txt. None-zero value will record all the chat history.
-- proxy : If you connect to the internet by using some proxy, you need to set the value to some none-zero value. Zero means no proxy. This is the common case. We will provde more explaination for this parameter in the future.
-- user/password/domain/host/port : if proxy is non-zero, we will use these parameters to configure your proxy settings. We will provde more explaination for this parameter in the future.
-
-For better understanding for proxy settings, please check the below link as a good start point:
-
-https://curl.se/libcurl/c/CURLOPT_PROXYTYPE.html
-
-After you change the values of conf.json, you need to restart PuttyGPT to make these changes effective.
 
 ## Question?
 
