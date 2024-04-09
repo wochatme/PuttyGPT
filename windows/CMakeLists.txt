@@ -122,18 +122,18 @@ target_include_directories(puttygpt PUBLIC c:/gpt/vcpkg/packages/curl_x64-window
 target_include_directories(puttygpt PUBLIC c:/gpt/vcpkg/packages/cjson_x64-windows-static/include)
 target_include_directories(puttygpt PUBLIC c:/gpt/scintilla/include)
 
-target_link_libraries(puttygpt debug c:/build/askrob/scintilla/Debug/scintilla.lib)
-target_link_libraries(puttygpt optimized c:/build/askrob/scintilla/MinSizeRel/scintilla.lib)
+# target_link_libraries(puttygpt debug c:/build/askrob/scintilla/Debug/scintilla.lib)
+# target_link_libraries(puttygpt optimized c:/build/askrob/scintilla/MinSizeRel/scintilla.lib)
 
 target_link_libraries(puttygpt debug c:/gpt/vcpkg/packages/curl_x64-windows-static/debug/lib/libcurl-d.lib)
 target_link_libraries(puttygpt debug c:/gpt/vcpkg/packages/zlib_x64-windows-static/debug/lib/zlibd.lib)
 target_link_libraries(puttygpt debug c:/gpt/vcpkg/packages/cjson_x64-windows-static/debug/lib/cjson.lib)
-# target_link_libraries(puttygpt debug c:/gpt/scintilla/bin/libscintilla.lib)
+target_link_libraries(puttygpt debug c:/gpt/scintilla/bin/libscintilla.lib)
 
 target_link_libraries(puttygpt optimized c:/gpt/vcpkg/packages/curl_x64-windows-static/lib/libcurl.lib)
 target_link_libraries(puttygpt optimized c:/gpt/vcpkg/packages/zlib_x64-windows-static/lib/zlib.lib)
 target_link_libraries(puttygpt optimized c:/gpt/vcpkg/packages/cjson_x64-windows-static/lib/cjson.lib)
-# target_link_libraries(puttygpt optimized c:/gpt/scintilla/bin/libscintilla.lib)
+target_link_libraries(puttygpt optimized c:/gpt/scintilla/bin/libscintilla.lib)
 
 be_list(puttygpt PuTTY SSH SERIAL OTHERBACKENDS)
 add_dependencies(puttygpt generated_licence_h)

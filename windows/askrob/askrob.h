@@ -246,9 +246,8 @@ static CRITICAL_SECTION     g_csReceMsg;
 
 #define TIMER_ASKROB        999  /* 999 ms for timer */
 
-#define CHATWIN_GAP         19
-
 #define INPUT_BUF_MAX       (1<<18) /* 256 KB should be big enough */
+#define INPUT_BUF_64KB      (1<<16)
 
 #define WM_BRING_TO_FRONT   (WM_USER + 1)
 
@@ -274,6 +273,9 @@ static HWND hWndAskRob = NULL; /* the window for AI chat */
 static HWND hWndChat   = NULL;   /* the child window in hWndAskRob */
 static HWND hWndEdit   = NULL;   /* the child window in hWndAskRob */
 
+#define WIN_SIZE_GAP    25
+static int INPUT_WIN_HEIGHT = 140;
+
 /* 4 buttons */
 static HBITMAP bmpQuestion = NULL;
 static HBITMAP bmpSaveFile = NULL;
@@ -284,10 +286,10 @@ static HCURSOR	hCursorHand = NULL;
 static HCURSOR	hCursorNS   = NULL;
 
 static RECT rectChat = { 0 }; /* to record the postion of the AskRob chat window */
+static RECT g_rectClient = { 0 }; /* to cache the client area of the main chat window */
 
-static U8* inputBuffer = NULL;
-static int inputBufPos = 0;
-
+static U8*       inputBuffer = NULL;
+static int       inputBufPos = 0;
 static wchar_t*  screenBuffer = NULL;
 static int       screenBufPos = -1;
 
@@ -444,7 +446,7 @@ static int DoSettings(HWND hWnd)
 /* the main window proc for AI chat window */
 static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    bool bHandled = false;
+    static BOOL bCursorIsChanged = FALSE;
 
     switch (uMsg)
     {
@@ -507,40 +509,35 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
         }
         return 0;
     case WM_SETCURSOR:
-        bHandled = false;
         if (((HWND)wParam == hWnd) && (LOWORD(lParam) == HTCLIENT))
         {
-            RECT rc = { 0 };
-            GetClientRect(hWnd, &rc);
-            DWORD dwPos = GetMessagePos();
-            POINT pt = { GET_X_LPARAM(dwPos), GET_Y_LPARAM(dwPos) };
-            ScreenToClient(hWnd, &pt);
-            if (pt.y >= rc.bottom - 160 && pt.y < rc.bottom - 160 + 15)
-            {
-                int xPos = pt.x;
-                if ((xPos >= 20 && xPos < 20 + 15) 
-                    || (xPos >= 20 + 30 && xPos < 20 + 30 + 15) 
-                    || (xPos >= 20 + 60 && xPos < 20 + 60 + 15)
-                    || (xPos >= 20 + 90 && xPos < 20 + 90 + 15))
-                    bHandled = true;
-            }
+            if (bCursorIsChanged) 
+                return 0; 
         }
-        if (bHandled) return 0; 
-        else return DefWindowProc(hWnd, uMsg, wParam, lParam);
+        break;
     case WM_MOUSEMOVE:
-        if (hCursorHand)
+        bCursorIsChanged = FALSE;
+        if (hCursorHand && hCursorNS)
         {
             int xPos = LOWORD(lParam);
             int yPos = HIWORD(lParam);
-            RECT rc;
-            GetClientRect(hWnd, &rc);
-            if (yPos >= rc.bottom - 160 && yPos < rc.bottom - 160 + 15)
+
+            if (yPos >= g_rectClient.bottom - (INPUT_WIN_HEIGHT + 20) && yPos < g_rectClient.bottom - (INPUT_WIN_HEIGHT + 5))
             {
                 if ((xPos >= 20 && xPos < 20 + 15) 
                     || (xPos >= 20 + 30 && xPos < 20 + 30 + 15) 
                     || (xPos >= 20 + 60 && xPos < 20 + 60 + 15)
                     || (xPos >= 20 + 90 && xPos < 20 + 90 + 15))
+                {
                     SetCursor(hCursorHand);
+                    bCursorIsChanged = TRUE;
+                }
+            }
+            else if((yPos > g_rectClient.bottom - (INPUT_WIN_HEIGHT + WIN_SIZE_GAP) && yPos <= g_rectClient.bottom - (INPUT_WIN_HEIGHT + WIN_SIZE_GAP - 2)) 
+                 || (yPos >= g_rectClient.bottom - (INPUT_WIN_HEIGHT + 2) && yPos < g_rectClient.bottom - INPUT_WIN_HEIGHT))
+            {
+                SetCursor(hCursorNS);    
+                bCursorIsChanged = TRUE;
             }
         }
         return 0;
@@ -550,9 +547,7 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
             int hit = -1;
             int xPos = GET_X_LPARAM(lParam);
             int yPos = GET_Y_LPARAM(lParam);
-            RECT rc;
-            GetClientRect(hWnd, &rc);
-            if (yPos >= rc.bottom - 160 && yPos < rc.bottom - 160 + 15)
+            if (yPos >= g_rectClient.bottom - (INPUT_WIN_HEIGHT + 20) && yPos < g_rectClient.bottom - (INPUT_WIN_HEIGHT + 5))
             {
                 if ((xPos >= 20 && xPos < 20 + 15) 
                     || (xPos >= 20 + 30 && xPos < 20 + 30 + 15) 
@@ -561,7 +556,14 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
                     hit = 0;
             }
             if (hit == -1)
-                PostMessage(hWnd, WM_NCLBUTTONDOWN, HTCAPTION, lParam);
+            {
+                WINDOWPLACEMENT placement;
+                if(GetWindowPlacement(hWnd, &placement))
+                {
+                    if(placement.showCmd != SW_SHOWMAXIMIZED)
+                        PostMessage(hWnd, WM_NCLBUTTONDOWN, HTCAPTION, lParam);
+                }
+            }
         }
         return 0;
     case WM_LBUTTONUP:
@@ -570,9 +572,7 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
             int hit = -1;
             int xPos = GET_X_LPARAM(lParam);
             int yPos = GET_Y_LPARAM(lParam);
-            RECT rc;
-            GetClientRect(hWnd, &rc);
-            if (yPos >= rc.bottom - 160 && yPos < rc.bottom - 160 + 15)
+            if (yPos >= g_rectClient.bottom - (INPUT_WIN_HEIGHT + 20) && yPos < g_rectClient.bottom - (INPUT_WIN_HEIGHT + 5))
             {
                 if (xPos >= 20 && xPos < 20 + 15)
                     hit = 0;
@@ -694,14 +694,14 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
         if(IsWindow(hWndChat) && IsWindow(hWndEdit))
         {
             int width, height;
-            RECT rcClient;
-            GetClientRect(hWnd, &rcClient);
-            width = LOWORD(lParam);
-            height = HIWORD(lParam);
-            width = rcClient.right - rcClient.left;
-            height = rcClient.bottom - rcClient.top;
-            MoveWindow(hWndChat, 0, 0, width, height - 165, TRUE);
-            MoveWindow(hWndEdit, 0, height - 140, width, 150, TRUE);
+
+            GetClientRect(hWnd, &g_rectClient);
+
+            width = g_rectClient.right - g_rectClient.left;
+            height = g_rectClient.bottom - g_rectClient.top;
+            
+            MoveWindow(hWndChat, 0, 0, width, height - (INPUT_WIN_HEIGHT + WIN_SIZE_GAP), TRUE);
+            MoveWindow(hWndEdit, 0, height - INPUT_WIN_HEIGHT, width, INPUT_WIN_HEIGHT, TRUE);
         }
         return 0;
     case WM_CREATE:
@@ -1252,6 +1252,7 @@ static bool LoadConfiguration(HINSTANCE hInstance)
             }
         }
     }
+
     /* well, this is a valid path, so we find conf.json and logfile here */
     if (idx > 0 && idx < (MAX_PATH - 20)) 
     {
@@ -1275,33 +1276,34 @@ static bool LoadConfiguration(HINSTANCE hInstance)
         if(TRUE)
         {  /* check if the conf.json file is available */
             BOOL bAvailable = FALSE;
-            WIN32_FILE_ATTRIBUTE_DATA fileInfo;
-            if (GetFileAttributesExW(g_cnfFile, GetFileExInfoStandard, &fileInfo) != 0)
+            WIN32_FILE_ATTRIBUTE_DATA fileInfo = { 0 };
+
+            if (GetFileAttributesExW(g_cnfFile, GetFileExInfoStandard, &fileInfo) != 0) /* we find conf.json */
             {
-                if ((fileInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) 
+                if ((fileInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) /* it is not a directory */
                     bAvailable = TRUE;
             }
-            if (!bAvailable) /* conf.json is not exsiting */
+
+            if (bAvailable == FALSE) /* conf.json is not available, we will create a new one by using the default values */
             {
                 if (_wsopen_s(&fd, g_cnfFile, _O_WRONLY | _O_CREAT, _SH_DENYNO, _S_IWRITE) == 0)
                 {
                     size_t json_length = strlen(default_conf_json);
-                    _write(fd, default_conf_json, json_length);
+                    _write(fd, default_conf_json, (unsigned int)json_length);
                     _close(fd);
-                    fd = 0;
                 }
             }
         }
 
         /* set the default paramter values */
         SetDeaultSettings();
-
-        if (_wsopen_s(&fd, g_cnfFile, _O_RDONLY | _O_BINARY, _SH_DENYWR, 0) == 0)
+        fd = 0;
+        if (_wsopen_s(&fd, g_cnfFile, _O_RDONLY | _O_BINARY, _SH_DENYWR, 0) == 0) /* we open conf.json successfully */
         {
             U32 size = (U32)_lseek(fd, 0, SEEK_END); /* get the file size */
-            if (size >= 128 && size < INPUT_BUF_MAX)
+            if (size >= 128 && size < INPUT_BUF_64KB)
             {
-                char* jsondata = (char*)VirtualAlloc(NULL, INPUT_BUF_MAX, MEM_COMMIT, PAGE_READWRITE);
+                char* jsondata = (char*)VirtualAlloc(NULL, INPUT_BUF_64KB, MEM_COMMIT, PAGE_READWRITE);
                 if (jsondata)
                 {
                     U32 bytes;
@@ -1352,17 +1354,22 @@ static bool LoadConfiguration(HINSTANCE hInstance)
  */
 static void AR_Init(HINSTANCE hInstance)
 {
-    int  r = 0;
+    int  r = 0; /* after a serial initialization, if r is 0, then everything is good */
 
-    hInstAskRob = hInstance;
-    AskRobIsGood = FALSE;
+    hInstAskRob = hInstance;  /* cache the global HINSTANCE for some function calls */
+    AskRobIsGood = FALSE;     /* a global variable to indicate AskRob is ready or not */
 
-    InitializeCriticalSection(&g_csSendMsg);
+    g_Quit = 0;       /* this two are global signal to let some threads to quit gracefully */
+    g_QuitAskRob = 0;
+
+    INPUT_WIN_HEIGHT = 140;
+
+    InitializeCriticalSection(&g_csSendMsg);  /* these two are Critial Sections to sync different threads */
     InitializeCriticalSection(&g_csReceMsg);
 
     assert(prev_chatdata == NULL);
 
-    prev_chatdata = NULL;
+    prev_chatdata = NULL;  /* this buffer is used to save the previous chat data so we can restore it later */
 
     if (LoadConfiguration(hInstance)) /* load the configuration information from conf.json */
     {
@@ -1375,28 +1382,29 @@ static void AR_Init(HINSTANCE hInstance)
             r++;
 
         /* we set a default postion of the chat window */
-        rectChat.left = 100;
-        rectChat.right = rectChat.left + 480;
-        rectChat.top = 100;
+        rectChat.left   = 100;
+        rectChat.right  = rectChat.left + 480;
+        rectChat.top    = 100;
         rectChat.bottom = rectChat.top + 800;
 
-        wc.cbSize = sizeof(WNDCLASSEXW);
-        wc.style = CS_GLOBALCLASS | CS_HREDRAW | CS_VREDRAW;
-        wc.hInstance = hInstance;
-        wc.lpfnWndProc = AskRobWindowProc;
+        /* register the window class for the chat window */
+        wc.cbSize        = sizeof(WNDCLASSEXW);
+        wc.style         = CS_GLOBALCLASS | CS_HREDRAW | CS_VREDRAW;
+        wc.hInstance     = hInstance;
+        wc.lpfnWndProc   = AskRobWindowProc;
         wc.lpszClassName = ASKROB_MAIN_CLASS_NAME;
-        wc.hIcon = LoadIcon(hinst, MAKEINTRESOURCE(IDI_MAINICON));
-        wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+        wc.hIcon         = LoadIcon(hinst, MAKEINTRESOURCE(IDI_MAINICON));
+        wc.hCursor       = LoadCursor(NULL, IDC_ARROW);
 
         if (RegisterClassExW(&wc) == 0)
             r++;
 
-        assert(inputBuffer == NULL); /* 64KB input is big enough */
+        assert(inputBuffer == NULL); /* 256KB input is big enough */
         inputBufPos = 0;
         inputBuffer = (U8*)VirtualAlloc(NULL, INPUT_BUF_MAX, MEM_COMMIT, PAGE_READWRITE);
         if (inputBuffer == NULL) r++;
 
-        assert(screenBuffer == NULL); /* 32 KB for the screen should be good */
+        assert(screenBuffer == NULL); /* 128 KB for the screen should be good */
         screenBufPos = -1;
         screenBuffer = (wchar_t*)VirtualAlloc(NULL, INPUT_BUF_MAX, MEM_COMMIT, PAGE_READWRITE);
         if (screenBuffer == NULL) r++;
@@ -1415,13 +1423,16 @@ static void AR_Init(HINSTANCE hInstance)
         if (bmpSettings == NULL) r++;
 
         hCursorHand = LoadCursor(NULL, IDC_HAND);
+        if(hCursorHand == NULL) r++;
+        hCursorNS   = LoadCursor(NULL, IDC_SIZENS);
+        if(hCursorNS == NULL) r++;
 
         if (r == 0)
         {
             DWORD in_threadid; /* required for Win9x */
             HANDLE hThread;
 
-            AskRobIsGood = TRUE;
+            AskRobIsGood = TRUE; /* everything is good so far, set AskRobIsGood = TRUE; */
 
             /* start up the backend network thread */
             hThread = CreateThread(NULL, 0, network_threadfunc, NULL, 0, &in_threadid);
@@ -1439,8 +1450,10 @@ static void AR_Init(HINSTANCE hInstance)
 static void AR_Term()
 {
     UINT tries = 10;
+
     /* tell all threads to quit gracefully */
     InterlockedIncrement(&g_Quit); 
+    
     /* wait the threads to quit */
     while (g_threadCount && tries > 0) 
     {
@@ -1470,22 +1483,30 @@ static void AR_Term()
 
     if (AskRobIsGood)
     {
+        curl_global_cleanup();
         Scintilla_ReleaseResources();
     }
 
+    /* release the bitmap resource */
     if (bmpQuestion)
     {
         DeleteObject(bmpQuestion);
+        bmpQuestion = NULL;
     }
-
     if (bmpSaveFile)
     {
         DeleteObject(bmpSaveFile);
+        bmpSaveFile = NULL;
     }
-
     if (bmpEmptyLog)
     {
         DeleteObject(bmpEmptyLog);
+        bmpEmptyLog = NULL;
+    }
+    if (bmpSettings)
+    {
+        DeleteObject(bmpEmptyLog);
+        bmpSettings = NULL;
     }
 
     DeleteCriticalSection(&g_csSendMsg);
