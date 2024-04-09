@@ -73,3 +73,12 @@ For better understanding for proxy settings, please check the below link as a go
 
 https://curl.se/libcurl/c/CURLOPT_PROXYTYPE.html
 
+
+## How To Build PuttyGPT From Source Code?
+
+Please check our [Build Guide](askrob/build.md) for details. This is a step-by-step guide that is friendly to the junior users who have little experience in C programming.
+
+## FeedBack
+
+If you have any question, please shoot the email to wochatdb@gmail.com 
+
