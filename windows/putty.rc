@@ -1,0 +1,20 @@
+#include "rcstuff.h"
+#include "putty-rc.h"
+
+#define APPNAME "PuTTY"
+#define APPDESC "SSH, Telnet, Rlogin, and SUPDUP client"
+
+IDI_MAINICON ICON "putty.ico"
+IDI_CFGICON ICON "puttycfg.ico"
+
+IDB_QUESTION     BITMAP     "question.bmp"
+IDB_SAVEFILE     BITMAP     "savefile.bmp"
+IDB_EMPTYLOG     BITMAP     "emptylog.bmp"
+IDB_SETTINGS     BITMAP     "settings.bmp"
+
+#include "help.rc2"
+#include "putty-common.rc2"
+
+#ifndef NO_MANIFESTS
+1 RT_MANIFEST "putty.mft"
+#endif /* NO_MANIFESTS */
