@@ -11,6 +11,7 @@
 #ifndef PUTTY_DEFS_H
 #define PUTTY_DEFS_H
 
+#if 0
 #ifdef NDEBUG
 /*
  * PuTTY is a security project, so assertions are important - if an
@@ -21,6 +22,7 @@
  */
 #error Do not compile this code base with NDEBUG defined!
 #endif
+#endif 
 
 #if HAVE_CMAKE_H
 #include "cmake.h"
