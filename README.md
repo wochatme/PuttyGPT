@@ -1,0 +1,2 @@
+# PuttyGPT
+PuttyGPT = Putty + ChatGPT
