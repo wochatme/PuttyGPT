@@ -257,9 +257,9 @@ static const LPCWSTR ASKROB_MAIN_TITLE_NAME = L"X";
 
 static const char* greeting = "\n--\nHi, I am your humble servant. You can ask me any question by typing in the below window.\n";
 
-static volatile LONG		g_threadCount = 0;
-static volatile LONG		g_Quit = 0;
-static volatile LONG        g_QuitAskRob = 0;
+static volatile LONG g_threadCount = 0;
+static volatile LONG g_Quit = 0;
+static volatile LONG g_QuitAskRob = 0;
 
 static wchar_t g_logFile[MAX_PATH + 1] = { 0 };
 static wchar_t g_cnfFile[MAX_PATH + 1] = { 0 };
@@ -303,7 +303,7 @@ static void AR_CopyScreen(Terminal* term, const int* clipboards, int n_clipboard
     wchar_t* sbuf;
 
     EnterCriticalSection(&g_csSendMsg);
-    screenBufPos = -1;
+    screenBufPos = -1; /* -1 means no data in the screen. 0 means no data, but the buffer is "", not NULL */
     LeaveCriticalSection(&g_csSendMsg);
 
     sbuf = term_copyScreen(term, clipboards, n_clipboards);
@@ -418,6 +418,7 @@ static int DoEmptyLog(HWND hWnd)
     return 0;
 }
 
+/* simply to create a new process to run notepad.exe to open conf.json */
 static int DoSettings(HWND hWnd)
 {
     STARTUPINFOW si = { 0 };
@@ -440,6 +441,7 @@ static int DoSettings(HWND hWnd)
 #define GET_Y_LPARAM(lParam)	((int)(short)HIWORD(lParam))
 #endif
 
+/* the main window proc for AI chat window */
 static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     bool bHandled = false;
@@ -628,7 +630,7 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
             LeaveCriticalSection(&g_csReceMsg);
         }
         return 0;
-    case WM_NOTIFY:
+    case WM_NOTIFY: /* handle the event from the input window */
         {
             LPNMHDR lpnmhdr = (LPNMHDR)lParam;
             if (lpnmhdr->hwndFrom == hWndEdit && IsWindow(hWndEdit))
@@ -931,7 +933,7 @@ static DWORD WINAPI network_threadfunc(void* param)
                     memcpy(p, q, inputBufPos);
                     p += inputBufPos;
                     postLen = 67 + inputBufPos;
-                    if (screenBufPos > 0)
+                    if (screenBufPos > 0) /* there is some screen data */
                     {
                         *p++ = '"'; *p++ = '"'; *p++ = '"'; *p++ = '\n';
                         postLen += 4;
