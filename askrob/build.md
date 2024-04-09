@@ -1,4 +1,4 @@
-# The Guide About Building PuttyGPT From Source Code 
+# The Guide to Build PuttyGPT From Source Code 
 
 This document describes the step by step details about how to build PuttyGPT from the source code.
 
@@ -15,7 +15,7 @@ This document has three sections:
 - Build the source code of PuttyGPT directly
 - Build puttygpt.exe from the source code of Putty.
 
-## PrePare the Building Environment
+## The Preparation of Building Environment
 
 PuttyGPT currently can only run on Windows platform. We will build PuttyGPT in X64 mode only. We need to install four software tools before our building process:
 - Visual Studio 2022(Community Version) - the top 1 C/C++ compiler, linker and IDE for software development mainly focus on Windows platform.
@@ -74,18 +74,14 @@ cjson                    1.7.17           Ultralightweight JSON parser in ANSI C
 cjson[utils]                              Enable building the cJSON_Utils library
 staticjson               1.0.0            Fast, direct and static typed parsing of JSON with C++
 ...
-
 C:\gpt\vcpkg>vcpkg.exe search curl
 ...
-
 curl[openssl]                             SSL support (OpenSSL)
 curl[schannel]                            SSL support (Secure Channel)
 curl[sectransp]                           SSL support (sectransp)
 curl[ssh]                                 SSH support via libssh2
 curl[ssl]                                 Default SSL backend
-
 ...
-
 ```
 
 We will install static libraries for cJSON and libcurl. So run the below commands in c:\gpt\vcpkg. 
@@ -98,8 +94,6 @@ After a while, we can find a folder called "packages" in c:\gpt\vcpkg. Check the
 ```
 C:\gpt\vcpkg\packages>dir
  
-04/06/2024  07:56 PM    <DIR>          .
-04/06/2024  07:56 PM    <DIR>          ..
 04/06/2024  07:55 PM    <DIR>          cjson_x64-windows-static
 04/06/2024  07:56 PM    <DIR>          curl_x64-windows-static
 04/06/2024  07:55 PM    <DIR>          detect_compiler_x64-windows
@@ -107,8 +101,6 @@ C:\gpt\vcpkg\packages>dir
 04/06/2024  07:55 PM    <DIR>          vcpkg-cmake-config_x64-windows
 04/06/2024  07:55 PM    <DIR>          vcpkg-cmake_x64-windows
 04/06/2024  07:56 PM    <DIR>          zlib_x64-windows-static
-               0 File(s)              0 bytes
-               9 Dir(s)  278,982,643,712 bytes free
 ```
 
 We can see 3 folders: 
@@ -120,8 +112,6 @@ Our xxxx.lib and xxxx.h files are in these folders. You can check them by yourse
 ```
 C:\gpt\vcpkg\packages\curl_x64-windows-static>dir
  
-04/06/2024  07:56 PM    <DIR>          .
-04/06/2024  07:56 PM    <DIR>          ..
 04/06/2024  07:56 PM                44 BUILD_INFO
 04/06/2024  07:56 PM               814 CONTROL
 04/06/2024  07:56 PM    <DIR>          debug
@@ -129,17 +119,11 @@ C:\gpt\vcpkg\packages\curl_x64-windows-static>dir
 04/06/2024  07:56 PM    <DIR>          lib
 04/06/2024  07:56 PM    <DIR>          share
 04/06/2024  07:56 PM    <DIR>          tools
-               2 File(s)            858 bytes
-               7 Dir(s)  278,981,922,816 bytes free
 
 C:\gpt\vcpkg\packages\curl_x64-windows-static>dir lib
  
-04/06/2024  07:56 PM    <DIR>          .
-04/06/2024  07:56 PM    <DIR>          ..
 04/06/2024  07:56 PM        14,648,824 libcurl.lib
 04/06/2024  07:56 PM    <DIR>          pkgconfig
-               1 File(s)     14,648,824 bytes
-               3 Dir(s)  278,981,922,816 bytes free
 ```
 
 We can see the libcurl.lib file that we need to link to our PuttyGPT program. You need to remember the location of the header files which is "include" folder. There is also a lib file in "debug" folder that is used to link when you compile your program in "Debug" mode.
@@ -161,12 +145,9 @@ You can find libscintilla.lib in C:gpt\scintilla\bin folder. This is the static 
 C:\gpt\scintilla\bin>dir *.lib
  04/06/2024  07:40 PM        31,050,712 libscintilla.lib
 04/06/2024  07:40 PM             1,806 Scintilla.lib
-               2 File(s)     31,052,518 bytes
-               0 Dir(s)  273,037,524,992 bytes free
 
 C:\gpt\scintilla\include>dir
 ...
-
 03/09/2024  03:15 AM            48,310 Scintilla.h
 03/09/2024  03:15 AM               851 Sci_Position.h
 ...
@@ -183,7 +164,7 @@ Download the source code of PuttyGPT by runing the below command in c:\gpt
 git clone https://github.com/wochatme/PuttyGPT.git
 ```
 
-Git will create a folder called "PuttyGPT" in c:\gpt. Use any text editor you like to open c:\gpt\PuttyGPT\windows\CMakeLists.txt. Search "add_executable(puttygpt", you can see the below texts:
+Git will create a folder called "PuttyGPT" in c:\gpt. Use any text editor you like to open c:\gpt\PuttyGPT\windows\CMakeLists.txt. Search "puttygpt", you can see the below texts:
 ```
 add_executable(puttygpt
   window_gpt.c
@@ -217,7 +198,7 @@ set_target_properties(puttygpt PROPERTIES
 installed_program(puttygpt)
 ```
 
-You need to change the path in target_include_directories and target_link_libraries instructions according to your environment. After you modify the path to point to the correct header file directory and libraries of libcurl, zlib, cJSON and scintillia, in "x64 Native Tools Command Prompt for VSTS 2022" window, run the below commands:
+You may need to change the path in "target_include_directories" and "target_link_libraries" instructions according to your environment. After you modify the path to point to the correct header file directory and libraries of libcurl, zlib, cJSON and scintillia, in "x64 Native Tools Command Prompt for VSTS 2022" window, run the below commands:
 ```
 cd c:\gpt\puttyGPT
 cmake -S . -B release -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=MinSizeRel
@@ -227,12 +208,11 @@ nmake
 
 After the building is done, you can see the puttygpt.exe:
 ```
-...
 c:\gpt\PuttyGPT\release>dir putty*.exe
  
 04/08/2024  06:03 PM           830,464 putty.exe
 04/08/2024  06:03 PM           287,232 puttygen.exe
-04/08/2024  06:03 PM         2,085,888 puttygpt.exe   <------- THIS IS WHAT WE WANT!!!!!!!!!!!!!!!!!
+04/08/2024  06:03 PM         2,085,888 puttygpt.exe   <--- THIS IS WHAT WE WANT !!!
 04/08/2024  06:03 PM           409,600 puttytel.exe
 ...
 ```
@@ -312,8 +292,8 @@ You can also check the below code in askrob.h:
             default:
                 break;
             }
-            curl_easy_setopt(curl, CURLOPT_PROXYTYPE, pxtype);
-            curl_easy_setopt(curl, CURLOPT_PROXY, g_proxy);
+            curl_easy_setopt(curl, CURLOPT_PROXYTYPE, pxtype); 
+            curl_easy_setopt(curl, CURLOPT_PROXY, g_proxy); /* read the document for this API in libcurl website */
         }
 ```
 Then you can check the document of libcurl to understand how to set "proxy_type" and "proxy" in conf.json. After you change the values of conf.json, you need to restart PuttyGPT to make these changes effective.
@@ -355,12 +335,10 @@ After a while, you can see the build is complete, and you can see many .exe file
 C:\gpt\putty\build_debug>dir putty.exe
  
 04/06/2024  07:22 PM         2,245,632 putty.exe
-               1 File(s)      2,245,632 bytes
-               0 Dir(s)  273,112,059,904 bytes free
 ```
 You can run the putty.exe by typing putty.exe in the same window or double click this file in file explorer. 
 
-Maybe you want to build a release version which has a smaller image size. Putty disable us to compile release verion from the source code. So please remove the below texts from c:\gpt\putty\defs.h. These texts are located between line 14 to line 23 in defs.h. 
+Maybe you want to build a release version which has a smaller image size. Putty prevent us to compiling release verion from the source code. So please remove the below lines from c:\gpt\putty\defs.h. These lines are located between line 14 to line 23 in defs.h. 
 ```
 #ifdef NDEBUG
 /*
@@ -404,14 +382,10 @@ Now our disk layout looks like the below:
 ```
 C:\gpt>dir
  
-04/06/2024  10:16 PM    <DIR>          .
-04/06/2024  10:16 PM    <DIR>          ..
 04/06/2024  07:25 PM    <DIR>          putty
 04/06/2024  10:16 PM    <DIR>          PuttyGPT
 04/06/2024  07:38 PM    <DIR>          scintilla
 04/06/2024  07:55 PM    <DIR>          vcpkg
-               0 File(s)              0 bytes
-               6 Dir(s)  278,965,551,104 bytes free
 ```
 
 The folder "putty" has the orginal source code of Putty that we trust. The folder "PuttyGPT" has the new source code we need to merge into the codebase of Putty. Let me show you how to do the merge.
@@ -422,14 +396,10 @@ What we added into the codebase of Putty are two header files: askrob.h and askr
 ```
 C:\gpt\puttyGPT\windows\askrob>dir
  
-04/08/2024  07:13 AM    <DIR>          .
-04/08/2024  07:13 AM    <DIR>          ..
 04/08/2024  07:13 AM            51,511 askrob.h
 04/08/2024  07:13 AM             7,084 askrob_terminial.h
-               2 File(s)         58,595 bytes
-               2 Dir(s)  280,589,889,536 bytes free
 ```
-We also added window_gpt.c which contains the WinMain() function for PuttyGPT.
+We also added window_gpt.c which contains the WinMain() function for PuttyGPT. In fact window_gpt.c is cloned from window.c in the same folder and add some lines. You can compare window.c and window_gpt.c to be clear what has been added.
 ```
 c:\gpt\PuttyGPT\windows>dir window_gpt.c
 
@@ -444,18 +414,16 @@ C:\gpt\puttyGPT\windows>dir *.bmp
 04/08/2024  07:13 AM               774 question.bmp
 04/08/2024  07:13 AM               774 savefile.bmp
 04/08/2024  07:13 AM               774 settings.bmp
-               4 File(s)          3,096 bytes
-               0 Dir(s)  280,582,492,160 bytes free
 ```
 
-What we changed in the codebase of Putty are the below files:
+The files we changed in the codebase of Putty are the below files:
 ```
 C:\gpt\putty\windows\putty-rc.h
 C:\gpt\putty\windows\putty.rc
 C:\gpt\putty\terminal\terminal.c
 ```
 
-You can use some compare tool such as "diff" on Linux to compare the above 4 files with the files in PuttyGPT to know what has been changed.
+You can use some compare tool such as "diff" on Linux to compare the above 3 files with the files in PuttyGPT to know what has been changed.
 
 After we are clear about what PuttyGPT added and modified, merge these changes into the codebase of Putty is pretty simple. Let me explain it in details.
 
@@ -501,7 +469,7 @@ Overwrite .\terminal.c? (Yes/No/All): Y
 
 If you want to review what has been changed, please use "diff" or similar command to compare these files.
 
-### Edit CMakeList.txt
+### CMakeList.txt Modification
 
 Edit the CMakeList.txt in c:\gpt\putty\windows, and add the below lines at around line 115:
 ```
@@ -541,7 +509,7 @@ You can modify the path according to your environment.
 
 ### Build It!
 
-We have complated all modifications and now it is ready to build. Run the below commands in c:\gpt\putty:
+We have completed all modifications and now it is ready to build. Run the below commands in c:\gpt\putty:
 ```
 cmake -S . -B puttygpt -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=MinSizeRel
 cd puttygpt
@@ -556,6 +524,7 @@ c:\gpt\putty\puttygpt>dir puttygpt.exe
 04/08/2024  06:28 PM         2,085,888 puttygpt.exe
 ```
 
+You get it! Fantastic! You are the BEST!
 
 ## Question?
 
