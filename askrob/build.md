@@ -4,7 +4,7 @@ This document describes the step by step details about how to build PuttyGPT fro
 
 The source code of PuttyGPT is based on the source code of Putty 0.8. As we know, Putty is a very famous SSH tool and it has great reputation in security area. What we did is only adding less than 2000 lines of source code into the codebase of Putty. The new source code does not change anything of Putty kernel. It only handles the AI chat window that is to communicate with the server of wochat.org by using HTTPS protocol. 
 
-If you trust the codebase of Putty, and if you are clear about the logic of the new source code added by PuttyGPT, then you will be confident about the security quality of PuttyGPT. This document will help you establish your confidence about PuttyGPT and enjoy what PuttyGPT did for you.
+If you trust the codebase of Putty, and if you are clear about the logic of the new source code added by PuttyGPT, then you will be confident about the security quality of PuttyGPT. This document will help you establish your confidence about PuttyGPT and enjoy what PuttyGPT does for you.
 
 The completed PuttyGPT program is only one execution file called "puttygpt.exe". You do not need anything else. In order to generate puttygpt.exe, You have two options:
 - If you trust the source code of PuttyGPT, we will compile the source code of PuttyGPT directly to generate puttygpt.exe.
@@ -23,9 +23,9 @@ PuttyGPT currently can only run on Windows platform. We will build PuttyGPT in X
 - GIT - a distributed version control system that tracks changes in any set of computer files, usually used for coordinating work among programmers who are collaboratively developing source code during software development.
 - VCPkg - a cross-platform open source package manager by Microsoft.
 
-All these four tools are free. There are tons of documents describing how to install VSTS(Visual Studio) 2022, CMake and GIT in the internet. So we will skip the installation of these tools. We will explain the details of VCPkg installation later.
+All these four tools are free. There are tons of documents describing how to install VSTS(Visual Studio) 2022, CMake and GIT in the internet. So we will skip the installation of these tools. We will explain the details of VCPkg installation later. 
 
-After your installation of VSTS 2022 is done. You can find a shortcut in the main menu of Windows 10/11: “x64 Native Tools Command Prompt for VSTS 2022”. 
+One key point during your installation of VSTS 2022 is: during your installation, you must select "Desktop development with C++". After your installation of VSTS 2022 is done. You can find a shortcut in the main menu of Windows 10/11: “x64 Native Tools Command Prompt for VSTS 2022”. 
 
 ![VSTS2022](vsts2022.png)
 
