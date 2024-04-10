@@ -10,183 +10,10 @@
 #include "Sci_Position.h"
 #include "scintilla.h"
 
-#define AR_ALIGN(size, boundary)   (((size) + ((boundary) -1)) & ~((boundary) - 1))
-#define AR_ALIGN_DEFAULT(size)   AR_ALIGN(size, 8)      /** Default alignment */
-/*
-#define AR_ALIGN_DEFAULT32(size)   AR_ALIGN(size, 4)
-#define AR_ALIGN_PAGE(size)        AR_ALIGN(size, (1<<16))
-*/
+#include "askrob_util.h"
+
 #pragma comment(lib, "crypt32.lib")
 
-#define S8      int8_t
-#define S16     int16_t
-#define S32     int32_t
-#define S64     int64_t
-#define U8      uint8_t
-#define U16     uint16_t
-#define U32     uint32_t
-#define U64     uint64_t
-
-#define WT_OK       0
-#define WT_FAIL     1
-
-/* Some fundamental constants */
-#define UNI_REPLACEMENT_CHAR		(U32)0x0000FFFD
-#define UNI_MAX_BMP					(U32)0x0000FFFF
-#define UNI_MAX_UTF16				(U32)0x0010FFFF
-#define UNI_MAX_UTF32				(U32)0x7FFFFFFF
-#define UNI_MAX_LEGAL_UTF32			(U32)0x0010FFFF
-#define UNI_SUR_HIGH_START          (U32)0xD800
-#define UNI_SUR_HIGH_END            (U32)0xDBFF
-#define UNI_SUR_LOW_START           (U32)0xDC00
-#define UNI_SUR_LOW_END             (U32)0xDFFF
-
-static const int halfShift = 10; /* used for shifting by 10 bits */
-static const U32 halfBase = 0x0010000UL;
-static const U32 halfMask = 0x3FFUL;
-/*
- * Once the bits are split out into bytes of UTF-8, this is a mask OR-ed
- * into the first byte, depending on how many bytes follow.  There are
- * as many entries in this table as there are UTF-8 sequence types.
- * (I.e., one byte sequence, two byte... etc.). Remember that sequencs
- * for *legal* UTF-8 will be 4 or fewer bytes total.
- */
-static const U8 firstByteMark[7] = { 0x00, 0x00, 0xC0, 0xE0, 0xF0, 0xF8, 0xFC };
-
-static U32 wt_UTF16ToUTF8(U16* input, U32 input_len, U8* output, U32* output_len)
-{
-    U32 codepoint, i;
-    U32 ret = WT_OK;
-    U32 bytesTotal = 0;
-    U8  BytesPerCharacter = 0;
-    U16 leadSurrogate, tailSurrogate;
-    const U32 byteMark = 0x80;
-    const U32 byteMask = 0xBF;
-
-    if (!output)  // the caller only wants to determine how many words in UTF16 string
-    {
-        for (i = 0; i < input_len; i++)
-        {
-            codepoint = input[i];
-            /* If we have a surrogate pair, convert to UTF32 first. */
-            if (codepoint >= UNI_SUR_HIGH_START && codepoint <= UNI_SUR_HIGH_END)
-            {
-                if (i < input_len - 1)
-                {
-                    if (input[i + 1] >= UNI_SUR_LOW_START && input[i + 1] <= UNI_SUR_LOW_END)
-                    {
-                        leadSurrogate = input[i];
-                        tailSurrogate = input[i + 1];
-                        codepoint = ((leadSurrogate - UNI_SUR_HIGH_START) << halfShift) 
-                            + (tailSurrogate - UNI_SUR_LOW_START) + halfBase;
-                        i += 1;
-                    }
-                    else /* it's an unpaired lead surrogate */
-                    {
-                        ret = WT_FAIL;
-                        break;
-                    }
-                }
-                else /* We don't have the 16 bits following the lead surrogate. */
-                {
-                    ret = WT_FAIL;
-                    break;
-                }
-            }
-            // TPN: substitute all control characters except for NULL, TAB, LF or CR
-            if (codepoint && (codepoint != (U32)0x09) && (codepoint != (U32)0x0a) && (codepoint != (U32)0x0d) && (codepoint < (U32)0x20))
-                codepoint = 0x3f;
-            // TPN: filter out byte order marks and invalid character 0xFFFF
-            if ((codepoint == (U32)0xFEFF) || (codepoint == (U32)0xFFFE) || (codepoint == (U32)0xFFFF))
-                continue;
-
-            /* Figure out how many bytes the result will require */
-            if (codepoint < (U32)0x80)
-                BytesPerCharacter = 1;
-            else if (codepoint < (U32)0x800)
-                BytesPerCharacter = 2;
-            else if (codepoint < (U32)0x10000)
-                BytesPerCharacter = 3;
-            else if (codepoint < (U32)0x110000)
-                BytesPerCharacter = 4;
-            else
-            {
-                BytesPerCharacter = 3;
-                codepoint = UNI_REPLACEMENT_CHAR;
-            }
-            bytesTotal += BytesPerCharacter;
-        }
-    }
-    else
-    {
-        U8* p = output;
-        for (i = 0; i < input_len; i++)
-        {
-            codepoint = input[i];
-            /* If we have a surrogate pair, convert to UTF32 first. */
-            if (codepoint >= UNI_SUR_HIGH_START && codepoint <= UNI_SUR_HIGH_END)
-            {
-                if (i < input_len - 1)
-                {
-                    if (input[i + 1] >= UNI_SUR_LOW_START && input[i + 1] <= UNI_SUR_LOW_END)
-                    {
-                        leadSurrogate = input[i];
-                        tailSurrogate = input[i + 1];
-                        codepoint = ((leadSurrogate - UNI_SUR_HIGH_START) << halfShift) + (tailSurrogate - UNI_SUR_LOW_START) + halfBase;
-                        i += 1;
-                    }
-                    else /* it's an unpaired lead surrogate */
-                    {
-                        ret = WT_FAIL;
-                        break;
-                    }
-                }
-                else /* We don't have the 16 bits following the lead surrogate. */
-                {
-                    ret = WT_FAIL;
-                    break;
-                }
-            }
-            // TPN: substitute all control characters except for NULL, TAB, LF or CR
-            if (codepoint && (codepoint != (U32)0x09) && (codepoint != (U32)0x0a) && (codepoint != (U32)0x0d) && (codepoint < (U32)0x20))
-                codepoint = 0x3f;
-            // TPN: filter out byte order marks and invalid character 0xFFFF
-            if ((codepoint == (U32)0xFEFF) || (codepoint == (U32)0xFFFE) || (codepoint == (U32)0xFFFF))
-                continue;
-
-            /* Figure out how many bytes the result will require */
-            if (codepoint < (U32)0x80)
-                BytesPerCharacter = 1;
-            else if (codepoint < (U32)0x800)
-                BytesPerCharacter = 2;
-            else if (codepoint < (U32)0x10000)
-                BytesPerCharacter = 3;
-            else if (codepoint < (U32)0x110000)
-                BytesPerCharacter = 4;
-            else
-            {
-                BytesPerCharacter = 3;
-                codepoint = UNI_REPLACEMENT_CHAR;
-            }
-
-            p += BytesPerCharacter;
-            switch (BytesPerCharacter) /* note: everything falls through. */
-            {
-            case 4: *--p = (U8)((codepoint | byteMark) & byteMask); codepoint >>= 6;
-            case 3: *--p = (U8)((codepoint | byteMark) & byteMask); codepoint >>= 6;
-            case 2: *--p = (U8)((codepoint | byteMark) & byteMask); codepoint >>= 6;
-            case 1: *--p = (U8)(codepoint | firstByteMark[BytesPerCharacter]);
-            }
-            p += BytesPerCharacter;
-            bytesTotal += BytesPerCharacter;
-        }
-    }
-
-    if (WT_OK == ret && output_len)
-        *output_len = bytesTotal;
-
-    return ret;
-}
 
 static const char* default_conf_json =
 "{\n\"key\" : \"03339A1C8FDB6AFF46845E49D120E0400021E161B6341858585C2E25CA3D9C01CA\",\n"
@@ -282,6 +109,8 @@ static HBITMAP bmpQuestion = NULL;
 static HBITMAP bmpSaveFile = NULL;
 static HBITMAP bmpEmptyLog = NULL;
 static HBITMAP bmpSettings = NULL;
+static HBITMAP bmpNetwork0 = NULL;
+static HBITMAP bmpNetwork1 = NULL;
 
 static HCURSOR	hCursorHand = NULL;
 static HCURSOR	hCursorNS   = NULL;
@@ -495,6 +324,12 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
                     {
                         bmp = SelectObject(hDCBitmap, bmpSettings);
                         BitBlt(hdcMem, 20, rc.bottom - 161, 15, 15, hDCBitmap, 0, 0, SRCCOPY);
+                        SelectObject(hDCBitmap, bmp);
+                    }
+                    if (bmpNetwork0)
+                    {
+                        bmp = SelectObject(hDCBitmap, bmpNetwork0);
+                        BitBlt(hdcMem, rc.right - 20, rc.bottom - 161, 15, 15, hDCBitmap, 0, 0, SRCCOPY);
                         SelectObject(hDCBitmap, bmp);
                     }
                     DeleteDC(hDCBitmap);
@@ -1432,6 +1267,9 @@ static void AR_Init(HINSTANCE hInstance)
         bmpSettings = LoadBitmap(hInstance, MAKEINTRESOURCE(IDB_SETTINGS));
         if (bmpSettings == NULL) r++;
 
+        bmpNetwork0 = LoadBitmap(hInstance, MAKEINTRESOURCE(IDB_NETWORK0));
+        if (bmpNetwork0 == NULL) r++;
+
         hCursorHand = LoadCursor(NULL, IDC_HAND);
         if(hCursorHand == NULL) r++;
         hCursorNS   = LoadCursor(NULL, IDC_SIZENS);
@@ -1515,6 +1353,11 @@ static void AR_Term()
     {
         DeleteObject(bmpEmptyLog);
         bmpSettings = NULL;
+    }
+    if (bmpNetwork0)
+    {
+        DeleteObject(bmpNetwork0);
+        bmpNetwork0 = NULL;
     }
 
     DeleteCriticalSection(&g_csSendMsg);
