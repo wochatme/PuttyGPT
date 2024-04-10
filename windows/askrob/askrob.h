@@ -11,10 +11,11 @@
 #include "scintilla.h"
 
 #define AR_ALIGN(size, boundary)   (((size) + ((boundary) -1)) & ~((boundary) - 1))
+#define AR_ALIGN_DEFAULT(size)   AR_ALIGN(size, 8)      /** Default alignment */
+/*
 #define AR_ALIGN_DEFAULT32(size)   AR_ALIGN(size, 4)
-#define AR_ALIGN_DEFAULT64(size)   AR_ALIGN(size, 8)      /** Default alignment */
 #define AR_ALIGN_PAGE(size)        AR_ALIGN(size, (1<<16))
-
+*/
 #pragma comment(lib, "crypt32.lib")
 
 #define S8      int8_t
@@ -244,7 +245,7 @@ static CRITICAL_SECTION     g_csReceMsg;
 #define IDM_ASKROB          0x01B0
 #define IDM_COPYSCREEN      0x01C0
 
-#define TIMER_ASKROB        999  /* 999 ms for timer */
+#define TIMER_ASKROB        666  /* 666 ms for timer */
 
 #define INPUT_BUF_MAX       (1<<18) /* 256 KB should be big enough */
 #define INPUT_BUF_64KB      (1<<16)
@@ -361,28 +362,27 @@ static int DoSaveLog(HWND hWnd)
     if (IsWindow(hWndChat)) /* save the chat history */
     {
         U32 length = SendMessage(hWndChat, SCI_GETTEXTLENGTH, 0, 0);
-        if (length)
+        if (length) /* the chat window has some text */
         {
-            OPENFILENAMEW ofn;       // common dialog box structure
-            wchar_t szFile[MAX_PATH + 1];       // buffer for file name
+            OPENFILENAMEW ofn;       
+            wchar_t szFile[MAX_PATH + 1];
 
-            // Initialize OPENFILENAME
             ZeroMemory(&ofn, sizeof(ofn));
             ofn.lStructSize = sizeof(ofn);
             ofn.hwndOwner = hWnd;
             ofn.lpstrFile = szFile;
             ofn.lpstrFile[0] = L'\0';
             ofn.nMaxFile = sizeof(szFile);
-            ofn.lpstrFilter = L"Text Files\0*.txt\0All Files\0*.*\0";
+            ofn.lpstrFilter = L"Text Files(*.txt)\0*.txt\0All Files(*.*)\0*.*\0";
             ofn.nFilterIndex = 1;
             ofn.lpstrFileTitle = NULL;
             ofn.nMaxFileTitle = 0;
             ofn.lpstrInitialDir = NULL;
-            ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_OVERWRITEPROMPT;
+            ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT;
 
-            if (GetSaveFileNameW(&ofn) == TRUE) // Display the "Save As" dialog
+            if (GetSaveFileNameW(&ofn) == TRUE) /* Display the "Save As" dialog */
             {
-                char* buf = (char*)malloc(AR_ALIGN_DEFAULT64(length + 1));
+                char* buf = (char*)malloc(AR_ALIGN_DEFAULT(length + 1));
                 if (buf)
                 {
                     int fd;
@@ -512,7 +512,10 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
         if (((HWND)wParam == hWnd) && (LOWORD(lParam) == HTCLIENT))
         {
             if (bCursorIsChanged) 
+            {
+                bCursorIsChanged = FALSE;
                 return 0; 
+            }
         }
         break;
     case WM_MOUSEMOVE:
@@ -560,7 +563,7 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
                 WINDOWPLACEMENT placement;
                 if(GetWindowPlacement(hWnd, &placement))
                 {
-                    if(placement.showCmd != SW_SHOWMAXIMIZED)
+                    if(placement.showCmd != SW_SHOWMAXIMIZED) /* when the window is not in MAXIMIZED status */
                         PostMessage(hWnd, WM_NCLBUTTONDOWN, HTCAPTION, lParam);
                 }
             }
@@ -607,7 +610,7 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
         return 0;
     case WM_TIMER:
         {
-            MessageTask* p;
+            MessageTask* p;  /* in each WM_TIMER call, we only pickup one message from the incomming queue */
             EnterCriticalSection(&g_csReceMsg);
             p = g_mtIncoming;
             while (p)
@@ -645,9 +648,10 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
                     ch = SendMessage(hWndEdit, SCI_GETCHARAT, currentPos - 1, 0);
                     if (ch == '\n' && heldControl == false) /* the user hit the ENTER key */
                     {
-                        U32 input_len  = SendMessage(hWndEdit, SCI_GETTEXTLENGTH, 0, 0);
-                        if (input_len > 1)
+                        U32 input_len  = SendMessage(hWndEdit, SCI_GETTEXTLENGTH, 0, 0); /* in bytes */
+                        if (input_len > 1 && input_len < INPUT_BUF_MAX - 16)
                         {
+                            bool allAreSpace = true;
                             U8* p = inputBuffer;
                             if (input_len > INPUT_BUF_MAX - 16)
                                 input_len = INPUT_BUF_MAX - 16;
@@ -655,23 +659,34 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
                             p[5] = '\n';  p[6] = '-'; p[7] = '-'; p[8] = '\n';
                             p = inputBuffer + 9;
                             SendMessage(hWndEdit, SCI_GETTEXT, input_len, (LPARAM)p);
-                            if (IsWindow(hWndChat))
+
+                            for(U32 i = 0; i < input_len; i++) /* check if the input only contain space characters */
                             {
-                                int totalLines = (int)SendMessage(hWndChat, SCI_GETLINECOUNT, 0, 0);
-                                SendMessage(hWndChat, SCI_SETREADONLY, FALSE, 0);
-                                SendMessage(hWndChat, SCI_APPENDTEXT, 9 + input_len, (LPARAM)inputBuffer);
-                                SendMessage(hWndChat, SCI_SETREADONLY, TRUE, 0);
-                                SendMessage(hWndChat, SCI_LINESCROLL, 0, totalLines);
-                                HasInputData = TRUE; /* the user has inputed some text */
+                                if(p[i] != ' ' && p[i] != '\t' && p[i] != '\r' && p[i] != '\n') 
+                                {
+                                    allAreSpace = false;
+                                    break;
+                                }
                             }
-
-                            if (IsWindow(hWndPutty))
+                            if(allAreSpace == false)
                             {
-                                EnterCriticalSection(&g_csSendMsg);
-                                inputBufPos = input_len;
-                                LeaveCriticalSection(&g_csSendMsg);
+                                if (IsWindow(hWndChat))
+                                {
+                                    int totalLines = (int)SendMessage(hWndChat, SCI_GETLINECOUNT, 0, 0);
+                                    SendMessage(hWndChat, SCI_SETREADONLY, FALSE, 0);
+                                    SendMessage(hWndChat, SCI_APPENDTEXT, 9 + input_len, (LPARAM)inputBuffer);
+                                    SendMessage(hWndChat, SCI_SETREADONLY, TRUE, 0);
+                                    SendMessage(hWndChat, SCI_LINESCROLL, 0, totalLines);
+                                    HasInputData = TRUE; /* the user has inputed some text */
+                                }
+                                if (IsWindow(hWndPutty))
+                                {
+                                    EnterCriticalSection(&g_csSendMsg);
+                                    inputBufPos = input_len;
+                                    LeaveCriticalSection(&g_csSendMsg);
 
-                                PostMessage(hWndPutty, WM_COMMAND, IDM_COPYSCREEN, 0);
+                                    PostMessage(hWndPutty, WM_COMMAND, IDM_COPYSCREEN, 0);
+                                }
                             }
                         }
                         SendMessage(hWndEdit, SCI_SETTEXT, 0, (LPARAM)"");
@@ -760,7 +775,7 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
                         prev_chatdata = NULL;
                     }
 
-                    prev_chatdata = (U8*)malloc(AR_ALIGN_DEFAULT64(length + 1));
+                    prev_chatdata = (U8*)malloc(AR_ALIGN_DEFAULT(length + 1));
                     if (prev_chatdata)
                     {
                         SendMessage(hWndChat, SCI_GETTEXT, length, (LPARAM)prev_chatdata);
@@ -808,8 +823,8 @@ size_t Curl_Write_Callback(char* ptr, size_t size, size_t nmemb, void* userdata)
             }
         }
 
-        length = sizeof(MessageTask) + (U32)realsize + 9 + 1;
-        mt = (MessageTask*)malloc(length);
+        length = sizeof(MessageTask) + (U32)realsize + 9 ;
+        mt = (MessageTask*)malloc(AR_ALIGN_DEFAULT(length + 1));
         if (mt)
         {
             U8* p;
@@ -819,7 +834,6 @@ size_t Curl_Write_Callback(char* ptr, size_t size, size_t nmemb, void* userdata)
             mt->next  = NULL;
             mt->state = 0;
             mt->message_type = 0;
-            mt->message = NULL;
             mt->message_length = (U32)realsize + 9;
             mt->message = ((U8*)mt) + sizeof(MessageTask);
             p = mt->message;
@@ -868,7 +882,6 @@ static DWORD WINAPI network_threadfunc(void* param)
     if (curl)
     {
         U8* postBuf = NULL;
-        U32 postLen = 0;
 
         curl_easy_setopt(curl, CURLOPT_URL, g_url);
         curl_easy_setopt(curl, CURLOPT_POST, 1L);
@@ -916,42 +929,39 @@ static DWORD WINAPI network_threadfunc(void* param)
         if (postBuf)
         {
             bool pickup;
-            U32 status, i, utf8len;
+            U32 status, i, utf8len, postLen = 0;
             U8* p;
-            U8* q;
             while (0 == g_Quit)
             {
                 Sleep(500);
                 pickup = false;
                 EnterCriticalSection(&g_csSendMsg);
-                if (inputBufPos > 0 && screenBufPos > (-1))
+                if (inputBufPos > 0 && inputBufPos < (INPUT_BUF_MAX - 70) && screenBufPos > (-1))
                 {
+                    pickup = true; /* there is some message need to send */
                     p = postBuf;
-                    q = g_appKey;
-                    for (i = 0; i < 67; i++) *p++ = *q++;
-                    q = inputBuffer + 9;
-                    memcpy(p, q, inputBufPos);
+                    for (i = 0; i < 67; i++) *p++ = g_appKey[i];
+                    memcpy(p, inputBuffer + 9, inputBufPos);
                     p += inputBufPos;
                     postLen = 67 + inputBufPos;
                     if (screenBufPos > 0) /* there is some screen data */
                     {
-                        *p++ = '"'; *p++ = '"'; *p++ = '"'; *p++ = '\n';
-                        postLen += 4;
                         utf8len = 0;
                         status = wt_UTF16ToUTF8(screenBuffer, screenBufPos, NULL, &utf8len);
-                        if (status == WT_OK)
+                        if (status == WT_OK && utf8len && utf8len < INPUT_BUF_MAX)
                         {
+                            *p++ = '"'; *p++ = '"'; *p++ = '"'; *p++ = '\n';
+                            postLen += 4;
                             status = wt_UTF16ToUTF8(screenBuffer, screenBufPos, p, NULL);
                             assert(status == WT_OK);
                             p += utf8len;
                             postLen += utf8len;
+                            *p++ = '\n'; *p++ = '"'; *p++ = '"'; *p++ = '"'; *p++ = '\0';
+                            postLen += 4;
                         }
-                        *p++ = '\n'; *p++ = '"'; *p++ = '"'; *p++ = '"'; *p++ = '\0';
-                        postLen += 4;
                     }
-                    inputBufPos = 0;
+                    inputBufPos = 0;    /* reset the length */
                     screenBufPos = -1;
-                    pickup = true;
                 }
                 LeaveCriticalSection(&g_csSendMsg);
 
@@ -997,15 +1007,14 @@ static DWORD WINAPI askrob_threadfunc(void* param)
 {
     int xPos, yPos;
     int width, height;
-    RECT rect = { 0 };
     MSG msg;
 
     InterlockedIncrement(&g_threadCount);
     g_QuitAskRob = 0;
 
-    xPos = rectChat.left;
-    yPos = rectChat.top;
-    width = rectChat.right - rectChat.left;
+    xPos   = rectChat.left;
+    yPos   = rectChat.top;
+    width  = rectChat.right - rectChat.left;
     height = rectChat.bottom - rectChat.top;
 
     if (width <= 0) width = 480;
@@ -1030,7 +1039,7 @@ static DWORD WINAPI askrob_threadfunc(void* param)
 
         while (0 == g_Quit && 0 == g_QuitAskRob)
         {
-            while (PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE))
+            if (PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE))
             {
                 GetMessage(&msg, NULL, 0, 0);
                 TranslateMessage(&msg);
@@ -1086,6 +1095,8 @@ static void SetDeaultSettings()
     g_fsize0          = 1100;
     g_fsize1          = 1100;
 
+    g_proxy[0] = '\0';
+
     for (i = 0; i < 67; i++) /* set the invalid key value */
     {
         g_appKey[i] = '*';
@@ -1105,8 +1116,6 @@ static void SetDeaultSettings()
         g_url[i] = defaultURL[i];
     }
     g_url[25] = '\0';
-
-    g_proxy[0] = '\0';
 }
 
 /*
@@ -1297,6 +1306,7 @@ static bool LoadConfiguration(HINSTANCE hInstance)
 
         /* set the default paramter values */
         SetDeaultSettings();
+
         fd = 0;
         if (_wsopen_s(&fd, g_cnfFile, _O_RDONLY | _O_BINARY, _SH_DENYWR, 0) == 0) /* we open conf.json successfully */
         {
@@ -1466,14 +1476,12 @@ static void AR_Term()
         free(prev_chatdata);
         prev_chatdata = NULL;
     }
-
     if (inputBuffer)
     {
         VirtualFree(inputBuffer, 0, MEM_RELEASE);
         inputBuffer = NULL;
         inputBufPos = 0;
     }
-
     if (screenBuffer)
     {
         VirtualFree(screenBuffer, 0, MEM_RELEASE);
