@@ -174,6 +174,20 @@ static U32 wt_UTF16ToUTF8(U16* input, U32 input_len, U8* output, U32* output_len
     return ret;
 }
 
+static inline bool wt_IsAllSpace(U8* string, U32 length)
+{
+    U32 i;
+
+    for(i = 0; i < length; i++) 
+    {
+        if(string[i] == ' ' || string[i] == '\t' || string[i] == '\n' || string[i] == '\r')
+            continue;
+        break;
+    }
+
+    return (i==length) ? true : false;
+}
+
 #if 0
 int wt_Raw2HexString(U8* input, U8 len, U8* output, U8* outlen)
 {

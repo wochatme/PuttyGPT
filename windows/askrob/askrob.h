@@ -27,12 +27,12 @@ static const char* tip_networkstatus = "Network Status: green is good, red is ba
 static const char* default_conf_json =
 "{\n\"key\" : \"03339A1C8FDB6AFF46845E49D120E0400021E161B6341858585C2E25CA3D9C01CA\",\n"
 "\"url\" : \"https://www.wochat.org/v1\",\n"
-"\"screen\" : 1,\n"
 "\"font0\" : \"Courier New\",\n"
 "\"font1\" : \"Courier New\",\n"
 "\"fsize0\" : 11,\n"
 "\"fsize1\" : 11,\n"
 "\"startchat\" : 1,\n"
+"\"screen\" : 1,\n"
 "\"autologging\" : 1,\n"
 "\"proxy_type\" : 0,\n"
 "\"proxy\" : \"\"\n}\n";
@@ -137,6 +137,7 @@ static HCURSOR	hCursorNS   = NULL;
 static RECT rectChat = { 0 }; /* to record the postion of the AskRob chat window */
 static RECT g_rectClient = { 0 }; /* to cache the client area of the main chat window */
 
+static U8*       inputStart  = NULL;
 static U8*       inputBuffer = NULL;
 static int       inputBufPos = 0;
 static wchar_t*  screenBuffer = NULL;
@@ -197,6 +198,7 @@ static int DoAskQuestion(HWND hWnd)
         if (IsWindow(hWndPutty))
         {
             EnterCriticalSection(&g_csSendMsg);
+            inputStart  = inputBuffer + 9;
             inputBufPos = input_len;
             LeaveCriticalSection(&g_csSendMsg);
             PostMessage(hWndPutty, WM_COMMAND, IDM_COPYSCREEN, 0);
@@ -350,6 +352,95 @@ int DoPaint(HWND hWnd, HDC hdc)
         DeleteDC(hdcMem);
     }
 
+    return 0;
+}
+
+static int DoNotify(HWND hWnd, WPARAM wParam, LPARAM lParam)
+{
+    LPNMHDR lpnmhdr = (LPNMHDR)lParam;
+    if (lpnmhdr->hwndFrom == hWndEdit && IsWindow(hWndEdit))
+    {
+        int currentPos;
+        char ch;
+        bool heldControl = (GetKeyState(VK_CONTROL) & 0x80) != 0; /* does the user hold Ctrl key? */
+        switch (lpnmhdr->code)
+        {
+        case SCN_CHARADDED:
+            currentPos = SendMessage(hWndEdit, SCI_GETCURRENTPOS, 0, 0);
+            ch = SendMessage(hWndEdit, SCI_GETCHARAT, currentPos - 1, 0);
+            if (ch == '\n' && heldControl == false) /* the user hit the ENTER key */
+            {
+                U32 input_len  = SendMessage(hWndEdit, SCI_GETTEXTLENGTH, 0, 0); /* in bytes */
+                if (input_len > 1 && input_len < INPUT_BUF_MAX - 16)
+                {
+                    bool allSpace = false;
+                    U8  step = 9;
+                    U8* p = inputBuffer;
+                    if (input_len > INPUT_BUF_MAX - 16)
+                        input_len = INPUT_BUF_MAX - 16;
+                    p[0] = '\n'; p[1] = 0xF0; p[2] = 0x9F; p[3] = 0xA4; p[4] = 0x9A; 
+                    p[5] = '\n';  p[6] = '-'; p[7] = '-'; p[8] = '\n';
+                    p = inputBuffer + step;
+                    SendMessage(hWndEdit, SCI_GETTEXT, input_len, (LPARAM)p);
+
+                    allSpace = wt_IsAllSpace(p, input_len);
+
+                    /* check if the input only contain space characters */
+                    if(allSpace == false)
+                    {
+                        if(input_len >= 3) /* check: --x */
+                        {
+                            if(p[0] == '-' && p[1] == '-')
+                            {
+                                allSpace = wt_IsAllSpace(p + 2, input_len - 2);
+                                if(allSpace == false)
+                                    step = 11;
+                                else
+                                    step = 0;
+                            }
+                        }
+
+                        if(allSpace == false) /* the user does input something */
+                        {
+                            if (IsWindow(hWndChat))
+                            {
+                                int totalLines = (int)SendMessage(hWndChat, SCI_GETLINECOUNT, 0, 0);
+                                SendMessage(hWndChat, SCI_SETREADONLY, FALSE, 0);
+                                SendMessage(hWndChat, SCI_APPENDTEXT, 9 + input_len, (LPARAM)inputBuffer);
+                                SendMessage(hWndChat, SCI_SETREADONLY, TRUE, 0);
+                                SendMessage(hWndChat, SCI_LINESCROLL, 0, totalLines);
+                                HasInputData = TRUE; /* the user has inputed some text */
+                            }
+                            if (IsWindow(hWndPutty))
+                            {
+                                EnterCriticalSection(&g_csSendMsg);
+                                    inputBufPos = 0;
+                                    inputStart  = NULL;
+                                    if (step == 9)
+                                    {
+                                        inputBufPos = input_len;
+                                        inputStart = inputBuffer + step;
+                                    }
+                                    else if (step == 11)
+                                    {
+                                        inputBufPos = input_len - 2;
+                                        inputStart = inputBuffer + step;
+                                    }
+                                LeaveCriticalSection(&g_csSendMsg);
+
+                                if(g_screen)
+                                    PostMessage(hWndPutty, WM_COMMAND, IDM_COPYSCREEN, 0);
+                            }
+                        }
+                    }
+                }
+                SendMessage(hWndEdit, SCI_SETTEXT, 0, (LPARAM)"");
+            }
+            break;
+        default:
+            break;
+        }
+    }
     return 0;
 }
 
@@ -508,70 +599,7 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
         }
         return 0;
     case WM_NOTIFY: /* handle the event from the input window */
-        {
-            LPNMHDR lpnmhdr = (LPNMHDR)lParam;
-            if (lpnmhdr->hwndFrom == hWndEdit && IsWindow(hWndEdit))
-            {
-                int currentPos;
-                char ch;
-                bool heldControl = (GetKeyState(VK_CONTROL) & 0x80) != 0; /* does the user hold Ctrl key? */
-                switch (lpnmhdr->code)
-                {
-                case SCN_CHARADDED:
-                    currentPos = SendMessage(hWndEdit, SCI_GETCURRENTPOS, 0, 0);
-                    ch = SendMessage(hWndEdit, SCI_GETCHARAT, currentPos - 1, 0);
-                    if (ch == '\n' && heldControl == false) /* the user hit the ENTER key */
-                    {
-                        U32 input_len  = SendMessage(hWndEdit, SCI_GETTEXTLENGTH, 0, 0); /* in bytes */
-                        if (input_len > 1 && input_len < INPUT_BUF_MAX - 16)
-                        {
-                            bool allAreSpace = true;
-                            U8* p = inputBuffer;
-                            if (input_len > INPUT_BUF_MAX - 16)
-                                input_len = INPUT_BUF_MAX - 16;
-                            p[0] = '\n'; p[1] = 0xF0; p[2] = 0x9F; p[3] = 0xA4; p[4] = 0x9A; 
-                            p[5] = '\n';  p[6] = '-'; p[7] = '-'; p[8] = '\n';
-                            p = inputBuffer + 9;
-                            SendMessage(hWndEdit, SCI_GETTEXT, input_len, (LPARAM)p);
-
-                            for(U32 i = 0; i < input_len; i++) /* check if the input only contain space characters */
-                            {
-                                if(p[i] != ' ' && p[i] != '\t' && p[i] != '\r' && p[i] != '\n') 
-                                {
-                                    allAreSpace = false;
-                                    break;
-                                }
-                            }
-                            if(allAreSpace == false)
-                            {
-                                if (IsWindow(hWndChat))
-                                {
-                                    int totalLines = (int)SendMessage(hWndChat, SCI_GETLINECOUNT, 0, 0);
-                                    SendMessage(hWndChat, SCI_SETREADONLY, FALSE, 0);
-                                    SendMessage(hWndChat, SCI_APPENDTEXT, 9 + input_len, (LPARAM)inputBuffer);
-                                    SendMessage(hWndChat, SCI_SETREADONLY, TRUE, 0);
-                                    SendMessage(hWndChat, SCI_LINESCROLL, 0, totalLines);
-                                    HasInputData = TRUE; /* the user has inputed some text */
-                                }
-                                if (IsWindow(hWndPutty))
-                                {
-                                    EnterCriticalSection(&g_csSendMsg);
-                                    inputBufPos = input_len;
-                                    LeaveCriticalSection(&g_csSendMsg);
-
-                                    PostMessage(hWndPutty, WM_COMMAND, IDM_COPYSCREEN, 0);
-                                }
-                            }
-                        }
-                        SendMessage(hWndEdit, SCI_SETTEXT, 0, (LPARAM)"");
-                    }
-                    break;
-                default:
-                    break;
-                }
-            }
-        }
-        return 0;
+        return DoNotify(hWnd, wParam, lParam);
     case WM_GETMINMAXINFO:
         {
             LPMINMAXINFO lpMMI = (LPMINMAXINFO)lParam;
@@ -832,15 +860,16 @@ static DWORD WINAPI network_threadfunc(void* param)
                 update_network_status = false;
                 bPinging = false;
                 EnterCriticalSection(&g_csSendMsg);
-                if (inputBufPos > 0 && inputBufPos < (INPUT_BUF_MAX - 70) && screenBufPos > (-1))
+                if (inputBufPos > 0 && inputBufPos < (INPUT_BUF_MAX - 70) && inputStart != NULL)
                 {
                     pickup = true; /* there is some message need to send */
                     p = postBuf;
                     for (i = 0; i < 67; i++) *p++ = g_appKey[i];
-                    memcpy(p, inputBuffer + 9, inputBufPos);
+                    memcpy(p, inputStart, inputBufPos);
                     p += inputBufPos;
                     postLen = 67 + inputBufPos;
-                    if (screenBufPos > 0) /* there is some screen data */
+                    /* we need to include screen data */
+                    if (g_screen && screenBufPos > 0 && (inputStart == inputBuffer + 9)) 
                     {
                         utf8len = 0;
                         status = wt_UTF16ToUTF8(screenBuffer, screenBufPos, NULL, &utf8len);
@@ -852,10 +881,11 @@ static DWORD WINAPI network_threadfunc(void* param)
                             assert(status == WT_OK);
                             p += utf8len;
                             postLen += utf8len;
-                            *p++ = '\n'; *p++ = '"'; *p++ = '"'; *p++ = '"'; *p++ = '\0';
+                            *p++ = '\n'; *p++ = '"'; *p++ = '"'; *p++ = '"';
                             postLen += 4;
                         }
                     }
+                    *p = '\0';
                     inputBufPos = 0;    /* reset the length */
                     screenBufPos = -1;
                 }
@@ -1118,7 +1148,7 @@ static bool Json_Parsing(const char* jdata)
 
         if (cJSON_IsNumber(screen)) 
         {
-            g_screen = (U8)(screen->valueint);
+            g_screen = (U8)(screen->valueint); /* wether we need to send the screen data to the server? */
         }
 
         if (cJSON_IsString(font0)) /* try to get the font name of the chat window */
@@ -1356,6 +1386,7 @@ static void AR_Init(HINSTANCE hInstance)
             r++;
 
         assert(inputBuffer == NULL); /* 256KB input is big enough */
+        inputStart = NULL;
         inputBufPos = 0;
         inputBuffer = (U8*)VirtualAlloc(NULL, INPUT_BUF_MAX, MEM_COMMIT, PAGE_READWRITE);
         if (inputBuffer == NULL) r++;
