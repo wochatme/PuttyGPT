@@ -12,6 +12,7 @@ IDB_SAVEFILE     BITMAP     "savefile.bmp"
 IDB_EMPTYLOG     BITMAP     "emptylog.bmp"
 IDB_SETTINGS     BITMAP     "settings.bmp"
 IDB_NETWORK0     BITMAP     "network0.bmp"
+IDB_NETWORK1     BITMAP     "network1.bmp"
 
 #include "help.rc2"
 #include "putty-common.rc2"

@@ -174,7 +174,27 @@ static U32 wt_UTF16ToUTF8(U16* input, U32 input_len, U8* output, U32* output_len
     return ret;
 }
 
+int wt_Raw2HexString(U8* input, U8 len, U8* output, U8* outlen)
+{
+    U8 idx, i;
+    const U8* hex_chars = (const U8*)"0123456789ABCDEF";
 
+    for (i = 0; i < len; i++)
+    {
+        idx = ((input[i] >> 4) & 0x0F);
+        output[(i << 1)] = hex_chars[idx];
+
+        idx = (input[i] & 0x0F);
+        output[(i << 1) + 1] = hex_chars[idx];
+    }
+
+    output[(i << 1)] = 0;
+    if (outlen)
+        *outlen = (i << 1);
+
+    return 0;
+}
+#if 0
 /*-
  *  COPYRIGHT (C) 1986 Gary S. Brown.  You may use this program, or
  *  code or tables extracted from it, as desired without restriction.
@@ -285,5 +305,8 @@ U32 wt_GenCRC32(const U8* s, U32 len)
 	}
 	return crc32val;
 }
+#endif 
+
+
 
 #endif /* _ASKROB_UTIL_H_ */

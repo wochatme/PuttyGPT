@@ -14,6 +14,7 @@
 #define IDB_EMPTYLOG     302
 #define IDB_SETTINGS     303
 #define IDB_NETWORK0	 304
+#define IDB_NETWORK1	 305
 
 #define IDD_MAINBOX      102
 #define IDD_LOGBOX       110
