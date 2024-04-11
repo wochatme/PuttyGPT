@@ -27,7 +27,7 @@ static const char* tip_networkstatus = "Network Status: green is good, red is ba
 static const char* default_conf_json =
 "{\n\"key\" : \"03339A1C8FDB6AFF46845E49D120E0400021E161B6341858585C2E25CA3D9C01CA\",\n"
 "\"url\" : \"https://www.wochat.org/v1\",\n"
-"\"ping\" : \"https://www.wochat.org/ping\",\n"
+"\"screen\" : 1,\n"
 "\"font0\" : \"Courier New\",\n"
 "\"font1\" : \"Courier New\",\n"
 "\"fsize0\" : 11,\n"
@@ -40,17 +40,16 @@ static const char* default_conf_json =
 /* the variables to save configuration information */
 static const char* defaultFont = "Courier New";
 static const char* defaultURL  = "https://www.wochat.org/v1";
-static const char* defaultPING = "https://www.wochat.org/ping";
 
 static U8  g_appKey[67] = { 0 };
 static U8  g_url[256] = { 0 };
-static U8  g_ping[256] = { 0 };
 static U8  g_font0[32] = { 0 };
 static U8  g_font1[32] = { 0 };
 static U32 g_fsize0 = 1100;
 static U32 g_fsize1 = 1100;
 static U8  g_AskRobAtStartUp = 1;
 static U8  g_AutoLogging = 1;
+static U8  g_screen = 1;
 
 /*
  * libCurl Proxy type. Please check: https://curl.se/libcurl/c/CURLOPT_PROXYTYPE.html
@@ -106,7 +105,6 @@ static volatile LONG g_QuitAskRob = 0;
 #define NETWORK_GOOD    1
 
 static volatile LONG g_NetworkStatus = NETWORK_BAD;
-static volatile LONG g_NetworkStatus_prev = NETWORK_BAD;
 
 static wchar_t g_logFile[MAX_PATH + 1] = { 0 };
 static wchar_t g_cnfFile[MAX_PATH + 1] = { 0 };
@@ -681,14 +679,16 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
 }
 
 static const char reply_head[] = {'\n',0xF0,0x9F,0x99,0x82,'\n','-','-','\n',0 };
-
+static bool bPinging = false;
 size_t Curl_Write_Callback(char* ptr, size_t size, size_t nmemb, void* userdata)
 {
     size_t realsize = size * nmemb;
-    if (ptr && realsize > 0)
+
+    if (bPinging == false && ptr && realsize > 0)
     {
         U32 length;
         MessageTask* mt = NULL;
+        
         if (g_AutoLogging)
         {
             int fd = 0;
@@ -755,98 +755,11 @@ size_t Curl_Write_Callback(char* ptr, size_t size, size_t nmemb, void* userdata)
             LeaveCriticalSection(&g_csReceMsg);
         }
     }
+
     return realsize;
 }
 
-static U32 crc32_ping;
-
-size_t Ping_Callback(char* ptr, size_t size, size_t nmemb, void* userdata)
-{
-     size_t realsize = size * nmemb;
-     return realsize;
-}
-
-static DWORD WINAPI ping_threadfunc(void* param)
-{
-    CURL* curl;
-    InterlockedIncrement(&g_threadCount);
-
-    curl = curl_easy_init();
-    if (curl)
-    {
-        U8 randomize[32];
-        curl_easy_setopt(curl, CURLOPT_URL, g_ping);
-        curl_easy_setopt(curl, CURLOPT_POST, 1L);
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, Ping_Callback);
-        if (g_proxy_type && strlen(g_proxy) > 0)
-        {
-            long pxtype = CURLPROXY_HTTP;
-            switch (g_proxy_type)
-            {
-            case 1:
-                pxtype = CURLPROXY_HTTP;
-                break;
-            case 2:
-                pxtype = CURLPROXY_HTTP_1_0;
-                break;
-            case 3:
-                pxtype = CURLPROXY_HTTPS;
-                break;
-            case 4:
-                pxtype = CURLPROXY_HTTPS2;
-                break;
-            case 5:
-                pxtype = CURLPROXY_SOCKS4;
-                break;
-            case 6:
-                pxtype = CURLPROXY_SOCKS5;
-                break;
-            case 7:
-                pxtype = CURLPROXY_SOCKS4A;
-                break;
-            case 8:
-                pxtype = CURLPROXY_SOCKS5_HOSTNAME;
-                break;
-            default:
-                break;
-            }
-            curl_easy_setopt(curl, CURLOPT_PROXYTYPE, pxtype);
-            curl_easy_setopt(curl, CURLOPT_PROXY, g_proxy);
-        }
-
-        while (0 == g_Quit)
-        {
-            Sleep(3000);
-
-            if(BCryptGenRandom(NULL, randomize, 32, BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0)
-            {
-                for(U8 i=0; i<32; i++) randomize[i] = 33 - i;
-            }
-
-            if(g_NetworkStatus == NETWORK_BAD)
-            {
-                g_NetworkStatus_prev = g_NetworkStatus; /* save the previous status of network */
-                InterlockedExchange(&g_NetworkStatus, NETWORK_GOOD);
-            }
-            else
-            {
-                g_NetworkStatus_prev = g_NetworkStatus; /* save the previous status of network */
-                InterlockedExchange(&g_NetworkStatus, NETWORK_BAD);
-            }
-
-            if(IsWindow(hWndAskRob) && g_NetworkStatus_prev != g_NetworkStatus)
-            {
-                PostMessage(hWndAskRob, WM_NETWORK_STATUS, 0, 0); /* update the network status button */
-            }
-        }
-        curl_easy_cleanup(curl);
-    }
-
-    InterlockedDecrement(&g_threadCount);
-    return 0;
-}
+static U32 pingCount = 0;
 
 static DWORD WINAPI network_threadfunc(void* param)
 {
@@ -854,6 +767,7 @@ static DWORD WINAPI network_threadfunc(void* param)
     InterlockedIncrement(&g_threadCount);
 
     g_mtIncoming = NULL;
+    pingCount = 0;
 
     curl = curl_easy_init();
 
@@ -906,13 +820,17 @@ static DWORD WINAPI network_threadfunc(void* param)
         postBuf = (U8*)VirtualAlloc(NULL, INPUT_BUF_MAX + INPUT_BUF_MAX, MEM_COMMIT, PAGE_READWRITE);
         if (postBuf)
         {
-            bool pickup;
+            CURLcode rc;             
+            bool pickup, update_network_status;
             U32 status, i, utf8len, postLen = 0;
             U8* p;
             while (0 == g_Quit)
             {
                 Sleep(500);
+                pingCount++;
                 pickup = false;
+                update_network_status = false;
+                bPinging = false;
                 EnterCriticalSection(&g_csSendMsg);
                 if (inputBufPos > 0 && inputBufPos < (INPUT_BUF_MAX - 70) && screenBufPos > (-1))
                 {
@@ -945,7 +863,6 @@ static DWORD WINAPI network_threadfunc(void* param)
 
                 if (pickup)
                 {
-                    CURLcode rc; 
                     if (g_AutoLogging)
                     {
                         int fd = 0;
@@ -968,10 +885,36 @@ static DWORD WINAPI network_threadfunc(void* param)
                             _close(fd);
                         }
                     }
+
+                    update_network_status = true;
+                    InterlockedExchange(&g_NetworkStatus, NETWORK_BAD);
                     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postBuf);
                     rc = curl_easy_perform(curl);
+                    if(rc == CURLE_OK)
+                    {
+                        InterlockedExchange(&g_NetworkStatus, NETWORK_GOOD);
+                    }
+                }
+                else if((pingCount % 10) == 0) /* every 5 seconds */
+                {
+                    bPinging = true;
+                    update_network_status = true;
+                    InterlockedExchange(&g_NetworkStatus, NETWORK_BAD);
+                    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "\t");
+                    rc = curl_easy_perform(curl);
+                    if(rc == CURLE_OK)
+                    {
+                        InterlockedExchange(&g_NetworkStatus, NETWORK_GOOD);
+                    }
+                }
+
+                if(update_network_status && IsWindow(hWndAskRob))
+                {
+                    /* update the network status in UI thread */
+                    PostMessage(hWndAskRob, WM_NETWORK_STATUS, 0, 0); 
                 }
             }
+
             VirtualFree(postBuf, 0, MEM_RELEASE);
         }
         curl_easy_cleanup(curl);
@@ -1087,6 +1030,7 @@ static void SetDeaultSettings()
     g_proxy_type      = 0;
     g_fsize0          = 1100;
     g_fsize1          = 1100;
+    g_screen          = 1;
 
     g_proxy[0] = '\0';
 
@@ -1109,12 +1053,6 @@ static void SetDeaultSettings()
         g_url[i] = defaultURL[i];
     }
     g_url[25] = '\0';
-
-    for (i = 0; i < 27; i++)
-    {
-        g_ping[i] = defaultPING[i];
-    }
-    g_ping[27] = '\0';
 }
 
 /*
@@ -1132,7 +1070,7 @@ static bool Json_Parsing(const char* jdata)
         U8 length;
         cJSON* key     = cJSON_GetObjectItemCaseSensitive(json, "key");
         cJSON* url     = cJSON_GetObjectItemCaseSensitive(json, "url");
-        cJSON* ping    = cJSON_GetObjectItemCaseSensitive(json, "ping");
+        cJSON* screen  = cJSON_GetObjectItemCaseSensitive(json, "screen");
         cJSON* font0   = cJSON_GetObjectItemCaseSensitive(json, "font0");
         cJSON* font1   = cJSON_GetObjectItemCaseSensitive(json, "font1");
         cJSON* fsize0  = cJSON_GetObjectItemCaseSensitive(json, "fsize0");
@@ -1178,15 +1116,9 @@ static bool Json_Parsing(const char* jdata)
             }
         }
 
-        if (cJSON_IsString(ping)) /* try to get the ping URL */
+        if (cJSON_IsNumber(screen)) 
         {
-            length = (U8)strlen(ping->valuestring);
-            if (length)
-            {
-                if (length > 255) length = 255;
-                memcpy(g_ping, ping->valuestring, length);
-                g_ping[length] = '\0';
-            }
+            g_screen = (U8)(screen->valueint);
         }
 
         if (cJSON_IsString(font0)) /* try to get the font name of the chat window */
@@ -1385,7 +1317,6 @@ static void AR_Init(HINSTANCE hInstance)
     g_QuitAskRob = 0;
     g_threadCount = 0;
     g_NetworkStatus = NETWORK_BAD;
-    g_NetworkStatus_prev = NETWORK_BAD;
 
     INPUT_WIN_HEIGHT = 140;
 
@@ -1468,15 +1399,6 @@ static void AR_Init(HINSTANCE hInstance)
             /* start up the backend network thread */
             in_threadid = 0;
             hThread = CreateThread(NULL, 0, network_threadfunc, NULL, 0, &in_threadid);
-            if (hThread)
-            {
-                CloseHandle(hThread);          /* we don't need the thread handle */
-                hThread = NULL;
-            }
-
-            /* start up the backend network status monitoring thread */
-            in_threadid = 0;
-            hThread = CreateThread(NULL, 0, ping_threadfunc, NULL, 0, &in_threadid);
             if (hThread)
             {
                 CloseHandle(hThread);          /* we don't need the thread handle */
