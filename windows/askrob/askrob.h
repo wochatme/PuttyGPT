@@ -434,7 +434,7 @@ static int DoNotify(HWND hWnd, WPARAM wParam, LPARAM lParam)
                                 screenBufPos = 0;
                         LeaveCriticalSection(&g_csSendMsg);
 
-                        if (g_screen && IsWindow(hWndPutty)) /* get the screen data */
+                        if ((screenBufPos == -1) && IsWindow(hWndPutty)) /* get the screen data */
                         {
                             PostMessage(hWndPutty, WM_COMMAND, IDM_COPYSCREEN, 0);
                         }

@@ -106,10 +106,8 @@ For better understanding for proxy settings, please check the below link as a go
 
 https://curl.se/libcurl/c/CURLOPT_PROXYTYPE.html
 
-
 ### How To Make a New Line in Input Window?
 When you hit the ENTER key, your question will be sent to AI. You can use "Ctrl + Enter" to make a new line. That is: hold the CTRL key when you press ENTER key.
-
 
 ### How to Compile PuttyGPT Source Code?
 
