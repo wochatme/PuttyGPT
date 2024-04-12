@@ -9,9 +9,9 @@
 <text x="70" y="290" style="font-size:13px;font-family:'Arial'">PuttyGPT</text>
 <text x="170" y="160" style="font-size:13px;font-family:'Arial'">HTTPS</text>
 <text x="230" y="230" style="font-size:13px;font-family:'Arial'">SSH</text>
-<text x="230" y="30" style="font-size:13px;font-family:'Arial'">www.wochat.org</text>
+<text x="230" y="30" style="font-size:13px;font-family:'Arial'">www.wochat.ai</text>
 <text x="350" y="130" style="font-size:13px;font-family:'Arial'">Knowledge Base</text>
-<text x="410" y="230" style="font-size:13px;font-family:'Arial'">Your Server</text>
+<text x="410" y="230" style="font-size:13px;font-family:'Arial'">your server</text>
 <text x="475" y="160" style="font-size:13px;font-family:'Arial'">ChatGPT/Claude</text>
 
 <g transform="translate(250, 20)">

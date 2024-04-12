@@ -224,7 +224,6 @@ Then you can run puttygpt.exe! If you successfully build everything, that is awe
 When it is the first time for PuttyGPT to run, it will check if there is a configuration file called conf.json in the same directory. If it cannot find this file, putty.exe will generate a conf.json file filled with the default parameters, as showed in the below:
 
 ```
-c:\gpt\PuttyGPT\release>type conf.json
 {
 "key" : "03339A1C8FDB6AFF46845E49D120E0400021E161B6341858585C2E25CA3D9C01CA",
 "url" : "https://www.wochat.org/v1",
@@ -233,6 +232,7 @@ c:\gpt\PuttyGPT\release>type conf.json
 "fsize0" : 11,
 "fsize1" : 11,
 "startchat" : 1,
+"screen" : 1,
 "autologging" : 1,
 "proxy_type" : 0,
 "proxy" : ""
@@ -248,6 +248,7 @@ Let me explain the meanings of other parameters:
 - fsize0 : the font size for font0. 11 is a good default value. But you can enlarge it to 13 or 36 to try to get the best size you like.
 - fsize1 : the font size for font1.
 - startchat : if this parameter is 0, the robot chat window will not pop up when you start PuttyGPT. None-zero value means the robot chat window will pop out when you connect to your server. 
+- scren : if you do not want to send the informaiton on your Putty window to the server, just set this value to 0.
 - autologging: if this parameter is 0, PuttyGPT will not save all the chat history into the log files like log_xxxx.txt. None-zero value will record all the chat history.
 
 If you connect to the internet by using some proxy, you need to configure the below parameters:
