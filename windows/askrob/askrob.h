@@ -42,14 +42,14 @@ static const char* defaultFont = "Courier New";
 static const char* defaultURL  = "https://www.wochat.org/v1";
 
 static U8  g_appKey[67] = { 0 };
-static U8  g_url[256] = { 0 };
-static U8  g_font0[32] = { 0 };
-static U8  g_font1[32] = { 0 };
-static U32 g_fsize0 = 1100;
-static U32 g_fsize1 = 1100;
+static U8  g_url[256]   = { 0 };
+static U8  g_font0[32]  = { 0 };
+static U8  g_font1[32]  = { 0 };
+static U32 g_fsize0          = 1100;
+static U32 g_fsize1          = 1100;
 static U8  g_AskRobAtStartUp = 1;
-static U8  g_AutoLogging = 1;
-static U8  g_screen = 1;
+static U8  g_AutoLogging     = 1;
+static U8  g_screen          = 1;
 
 /*
  * libCurl Proxy type. Please check: https://curl.se/libcurl/c/CURLOPT_PROXYTYPE.html
@@ -94,7 +94,8 @@ static CRITICAL_SECTION     g_csReceMsg;
 static const LPCWSTR ASKROB_MAIN_CLASS_NAME = L"AskRobWin";
 static const LPCWSTR ASKROB_MAIN_TITLE_NAME = L"X";
 
-static const char* greeting = "\n--\nHi, I am your humble servant. You can ask me any question by typing in the below window.\n";
+static const char* greeting = 
+    "\n--\nHi, I am your humble servant. You can ask me any question by typing in the below window.\n";
 
 static volatile LONG g_threadCount = 0;
 static volatile LONG g_Quit = 0;
@@ -113,10 +114,10 @@ static BOOL HasInputData = FALSE;
 
 static HINSTANCE hInstAskRob = NULL;
 
-static HWND hWndPutty  = NULL;
-static HWND hWndAskRob = NULL; /* the window for AI chat */
-static HWND hWndChat   = NULL;   /* the child window in hWndAskRob */
-static HWND hWndEdit   = NULL;   /* the child window in hWndAskRob */
+static HWND hWndPutty   = NULL;
+static HWND hWndAskRob  = NULL; /* the window for AI chat */
+static HWND hWndChat    = NULL;   /* the child window in hWndAskRob */
+static HWND hWndEdit    = NULL;   /* the child window in hWndAskRob */
 static HWND hWndToolTip = NULL;
 
 #define WIN_SIZE_GAP    25
@@ -202,7 +203,6 @@ static int DoAskQuestion(HWND hWnd)
         if(g_screen)
             PostMessage(hWndPutty, WM_COMMAND, IDM_COPYSCREEN, 0);
     }
-
     return 0;
 }
 
@@ -301,9 +301,10 @@ int DoPaint(HWND hWnd, HDC hdc)
     if (hdcMem != NULL)
     {
         HDC hDCBitmap;
-        HBITMAP bmpMem = CreateCompatibleBitmap(hdc, rc.right - rc.left, rc.bottom - rc.top);
-        HBITMAP bmpOld = SelectObject(hdcMem, bmpMem);
+        HBITMAP bmpMem  = CreateCompatibleBitmap(hdc, rc.right - rc.left, rc.bottom - rc.top);
+        HBITMAP bmpOld  = SelectObject(hdcMem, bmpMem);
         HBRUSH brushBkg = CreateSolidBrush(RGB(192, 192, 192));
+
         FillRect(hdcMem, &rc, brushBkg);
 
         hDCBitmap = CreateCompatibleDC(hdcMem);
@@ -345,12 +346,10 @@ int DoPaint(HWND hWnd, HDC hdc)
             }
             DeleteDC(hDCBitmap);
         }
-
         BitBlt(hdc, 0, 0, rc.right - rc.left, rc.bottom - rc.top, hdcMem, 0, 0, SRCCOPY);
         SelectObject(hdcMem, bmpOld);
         DeleteDC(hdcMem);
     }
-
     return 0;
 }
 
@@ -498,12 +497,14 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
                         SendMessage(hWndToolTip, TTM_ACTIVATE, FALSE, 0);
                 }
             }
+#if 0
             else if((yPos > g_rectClient.bottom - (INPUT_WIN_HEIGHT + WIN_SIZE_GAP) && yPos <= g_rectClient.bottom - (INPUT_WIN_HEIGHT + WIN_SIZE_GAP - 2)) 
                  || (yPos >= g_rectClient.bottom - (INPUT_WIN_HEIGHT + 2) && yPos < g_rectClient.bottom - INPUT_WIN_HEIGHT))
             {
                 SetCursor(hCursorNS);    
                 bCursorIsChanged = TRUE;
             }
+#endif 
         }
         return 0;
     case WM_LBUTTONDOWN:
@@ -611,10 +612,9 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
         if(IsWindow(hWndChat) && IsWindow(hWndEdit))
         {
             int width, height;
-
             GetClientRect(hWnd, &g_rectClient);
 
-            width = g_rectClient.right - g_rectClient.left;
+            width  = g_rectClient.right  - g_rectClient.left;
             height = g_rectClient.bottom - g_rectClient.top;
             
             MoveWindow(hWndChat, 0, 0, width, height - (INPUT_WIN_HEIGHT + WIN_SIZE_GAP), TRUE);
@@ -623,7 +623,7 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
             rcPaint.top    = height - (INPUT_WIN_HEIGHT + WIN_SIZE_GAP);
             rcPaint.bottom = height - (INPUT_WIN_HEIGHT);
             rcPaint.right  = g_rectClient.right;
-            rcPaint.left = g_rectClient.right - 20; 
+            rcPaint.left   = g_rectClient.right - 20; 
         }
         return 0;
     case WM_CREATE:
@@ -640,18 +640,19 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
 
             if (IsWindow(hWndChat))
             {
-                U8 hello[128] = { 0 };
-                U8 greeting_length = (U8)strlen(greeting);
-                hello[0] = 0xF0; hello[1] = 0x9F; hello[2] = 0x99; hello[3] = 0x82;
-                for (U8 i = 0; i < greeting_length; i++) hello[4 + i] = greeting[i];
-
                 SendMessage(hWndChat, SCI_STYLESETFONT, STYLE_DEFAULT, (LPARAM)g_font0);
                 SendMessage(hWndChat, SCI_STYLESETSIZEFRACTIONAL, STYLE_DEFAULT, g_fsize0);
                 SendMessage(hWndChat, SCI_SETCODEPAGE, SC_CP_UTF8, 0);
                 SendMessage(hWndChat, SCI_SETWRAPMODE, SC_WRAP_WORD, 0);
+                if (HasInputData == FALSE)
+                {
+                    U8 hello[128] = { 0 };
+                    U8 greeting_length = (U8)strlen(greeting);
+                    hello[0] = 0xF0; hello[1] = 0x9F; hello[2] = 0x99; hello[3] = 0x82;
+                    for (U8 i = 0; i < greeting_length; i++) hello[4 + i] = greeting[i];
 
-                if(HasInputData == FALSE)
                     SendMessage(hWndChat, SCI_SETTEXT, 0, (LPARAM)hello);
+                }
                 else if(prev_chatdata)
                     SendMessage(hWndChat, SCI_SETTEXT, 0, (LPARAM)prev_chatdata);
 
@@ -685,7 +686,6 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
                         free(prev_chatdata);
                         prev_chatdata = NULL;
                     }
-
                     prev_chatdata = (U8*)malloc(AR_ALIGN_DEFAULT(length + 1));
                     if (prev_chatdata)
                     {
@@ -694,8 +694,8 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
                     }
                 }
             }
-            hWndChat = NULL;
-            hWndEdit = NULL;
+            hWndChat    = NULL;
+            hWndEdit    = NULL;
             hWndToolTip = NULL;
         }
         break;
