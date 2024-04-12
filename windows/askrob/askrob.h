@@ -16,6 +16,19 @@
 
 #pragma comment(lib, "crypt32.lib")
 
+#define DEFAULT_HEIGHT      140;
+
+#define IDM_ASKROB          0x01B0
+#define IDM_COPYSCREEN      0x01C0
+
+#define TIMER_ASKROB        666  /* 666 ms for timer */
+
+#define INPUT_BUF_MAX       (1<<18) /* 256 KB should be big enough */
+#define INPUT_BUF_64KB      (1<<16)
+
+#define WM_BRING_TO_FRONT   (WM_USER + 1)
+#define WM_NETWORK_STATUS   (WM_USER + 2)
+
 #if 0
 static const char* tip_settings      = "change the configuration parameters";
 static const char* tip_savechatlog   = "save the chat history into text file";
@@ -31,6 +44,7 @@ static const char* default_conf_json =
 "\"font1\" : \"Courier New\",\n"
 "\"fsize0\" : 11,\n"
 "\"fsize1\" : 11,\n"
+"\"height\" : 140,\n"
 "\"startchat\" : 1,\n"
 "\"screen\" : 1,\n"
 "\"autologging\" : 1,\n"
@@ -50,7 +64,7 @@ static U32 g_fsize1          = 1100;
 static U8  g_AskRobAtStartUp = 1;
 static U8  g_AutoLogging     = 1;
 static U8  g_screen          = 1;
-
+static U16 g_height          = DEFAULT_HEIGHT
 /*
  * libCurl Proxy type. Please check: https://curl.se/libcurl/c/CURLOPT_PROXYTYPE.html
  * 0 - No Proxy
@@ -79,17 +93,6 @@ static MessageTask* g_mtIncoming = NULL;
 /* used to sync different threads */
 static CRITICAL_SECTION     g_csSendMsg;
 static CRITICAL_SECTION     g_csReceMsg;
-
-#define IDM_ASKROB          0x01B0
-#define IDM_COPYSCREEN      0x01C0
-
-#define TIMER_ASKROB        666  /* 666 ms for timer */
-
-#define INPUT_BUF_MAX       (1<<18) /* 256 KB should be big enough */
-#define INPUT_BUF_64KB      (1<<16)
-
-#define WM_BRING_TO_FRONT   (WM_USER + 1)
-#define WM_NETWORK_STATUS   (WM_USER + 2)
 
 static const LPCWSTR ASKROB_MAIN_CLASS_NAME = L"AskRobWin";
 static const LPCWSTR ASKROB_MAIN_TITLE_NAME = L"X";
@@ -121,7 +124,7 @@ static HWND hWndEdit    = NULL;   /* the child window in hWndAskRob */
 static HWND hWndToolTip = NULL;
 
 #define WIN_SIZE_GAP    25
-static int INPUT_WIN_HEIGHT = 140;
+static int INPUT_WIN_HEIGHT = DEFAULT_HEIGHT;
 static int INPUT_BUF_OFFSET = 0;
 
 /* 6 buttons */
@@ -133,8 +136,9 @@ static HBITMAP bmpNetwork0 = NULL;
 static HBITMAP bmpNetwork1 = NULL;
 
 static HCURSOR	hCursorHand = NULL;
+#if 0
 static HCURSOR	hCursorNS   = NULL;
-
+#endif
 static RECT rectChat = { 0 }; /* to record the postion of the AskRob chat window */
 static RECT g_rectClient = { 0 }; /* to cache the client area of the main chat window */
 
@@ -314,25 +318,25 @@ int DoPaint(HWND hWnd, HDC hdc)
             if (bmpQuestion)
             {
                 bmp = SelectObject(hDCBitmap, bmpQuestion);
-                BitBlt(hdcMem, 20 + 90, rc.bottom - 160, 15, 15, hDCBitmap, 0, 0, SRCCOPY);
+                BitBlt(hdcMem, 20 + 90, rc.bottom - (INPUT_WIN_HEIGHT + 20), 15, 15, hDCBitmap, 0, 0, SRCCOPY);
                 SelectObject(hDCBitmap, bmp);
             }
             if (bmpSaveFile)
             {
                 bmp = SelectObject(hDCBitmap, bmpSaveFile);
-                BitBlt(hdcMem, 20 + 30, rc.bottom - 160, 15, 15, hDCBitmap, 0, 0, SRCCOPY);
+                BitBlt(hdcMem, 20 + 30, rc.bottom - (INPUT_WIN_HEIGHT + 20), 15, 15, hDCBitmap, 0, 0, SRCCOPY);
                 SelectObject(hDCBitmap, bmp);
             }
             if (bmpEmptyLog)
             {
                 bmp = SelectObject(hDCBitmap, bmpEmptyLog);
-                BitBlt(hdcMem, 20 + 60, rc.bottom - 160, 15, 15, hDCBitmap, 0, 0, SRCCOPY);
+                BitBlt(hdcMem, 20 + 60, rc.bottom - (INPUT_WIN_HEIGHT + 20), 15, 15, hDCBitmap, 0, 0, SRCCOPY);
                 SelectObject(hDCBitmap, bmp);
             }
             if (bmpSettings)
             {
                 bmp = SelectObject(hDCBitmap, bmpSettings);
-                BitBlt(hdcMem, 20, rc.bottom - 161, 15, 15, hDCBitmap, 0, 0, SRCCOPY);
+                BitBlt(hdcMem, 20, rc.bottom - (INPUT_WIN_HEIGHT + 21), 15, 15, hDCBitmap, 0, 0, SRCCOPY);
                 SelectObject(hDCBitmap, bmp);
             }
             if (bmpNetwork0 && bmpNetwork1)
@@ -341,7 +345,7 @@ int DoPaint(HWND hWnd, HDC hdc)
                     bmp = SelectObject(hDCBitmap, bmpNetwork0);
                 else
                     bmp = SelectObject(hDCBitmap, bmpNetwork1);
-                BitBlt(hdcMem, rc.right - 20, rc.bottom - 160, 15, 15, hDCBitmap, 0, 0, SRCCOPY);
+                BitBlt(hdcMem, rc.right - 20, rc.bottom - (INPUT_WIN_HEIGHT + 20), 15, 15, hDCBitmap, 0, 0, SRCCOPY);
                 SelectObject(hDCBitmap, bmp);
             }
             DeleteDC(hDCBitmap);
@@ -474,7 +478,7 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
         break;
     case WM_MOUSEMOVE:
         bCursorIsChanged = FALSE;
-        if (hCursorHand && hCursorNS)
+        if (hCursorHand) //&& hCursorNS)
         {
             int xPos = LOWORD(lParam);
             int yPos = HIWORD(lParam);
@@ -1070,6 +1074,7 @@ static void SetDeaultSettings()
     g_fsize0          = 1100;
     g_fsize1          = 1100;
     g_screen          = 1;
+    g_height          = DEFAULT_HEIGHT;
 
     g_proxy[0] = '\0';
 
@@ -1114,6 +1119,7 @@ static bool Json_Parsing(const char* jdata)
         cJSON* font1   = cJSON_GetObjectItemCaseSensitive(json, "font1");
         cJSON* fsize0  = cJSON_GetObjectItemCaseSensitive(json, "fsize0");
         cJSON* fsize1  = cJSON_GetObjectItemCaseSensitive(json, "fsize1");
+        cJSON* height  = cJSON_GetObjectItemCaseSensitive(json, "height");
         cJSON* startct = cJSON_GetObjectItemCaseSensitive(json, "startchat");
         cJSON* autolog = cJSON_GetObjectItemCaseSensitive(json, "autologging");
         cJSON* proxytp = cJSON_GetObjectItemCaseSensitive(json, "proxy_type");
@@ -1188,6 +1194,14 @@ static bool Json_Parsing(const char* jdata)
         {
             g_fsize1 = (U32)(fsize1->valueint) * 100;
         }
+
+        if (cJSON_IsNumber(height)) /* try to get the font size of the input window */
+        {
+            g_height = (U16)(height->valueint);
+            if (g_height < 20)  g_height = 20;
+            if (g_height > 600) g_height = 600;
+        }
+
         if (cJSON_IsNumber(startct)) /* should we start the chat window at startup? */
         {
             g_AskRobAtStartUp = (U8)(startct->valueint);
@@ -1354,8 +1368,8 @@ static void AR_Init(HINSTANCE hInstance)
     g_threadCount   = 0;           /* we use this counter to be sure all threads exit gracefully in the end */
     g_NetworkStatus = NETWORK_BAD; /* at first we assume the network is not connectable */
 
-    INPUT_WIN_HEIGHT = 140;    /* the height of the input window */
-    INPUT_BUF_OFFSET = 0;      /* offset of the real data in the inputBuffer */
+    INPUT_WIN_HEIGHT = DEFAULT_HEIGHT;    /* the height of the input window */
+    INPUT_BUF_OFFSET = 0;                 /* offset of the real data in the inputBuffer */
 
     assert(prev_chatdata == NULL);
     prev_chatdata = NULL;  /* this buffer is used to save the previous chat data so we can restore it later */
@@ -1378,6 +1392,8 @@ static void AR_Init(HINSTANCE hInstance)
         rectChat.right  = rectChat.left + 480;
         rectChat.top    = 100;
         rectChat.bottom = rectChat.top + 800;
+
+        INPUT_WIN_HEIGHT = g_height;
 
         /* register the window class for the chat window */
         wc.cbSize        = sizeof(WNDCLASSEXW);
@@ -1426,9 +1442,10 @@ static void AR_Init(HINSTANCE hInstance)
 
         hCursorHand = LoadCursor(NULL, IDC_HAND);
         if(hCursorHand == NULL) r++;
+#if 0
         hCursorNS   = LoadCursor(NULL, IDC_SIZENS);
         if(hCursorNS == NULL) r++;
-
+#endif
         if (r == 0) /* r is 0 means everything looks good during the intialization phase */
         {
             DWORD in_threadid; /* required for Win9x */
