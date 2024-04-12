@@ -141,7 +141,7 @@ static RECT g_rectClient = { 0 }; /* to cache the client area of the main chat w
 static U8*       inputBuffer = NULL;
 static int       inputBufPos = 0;
 static wchar_t*  screenBuffer = NULL;
-static int       screenBufPos = 0;
+static int       screenBufPos = -1;
 
 static U8* prev_chatdata = NULL;
 
@@ -154,10 +154,6 @@ static void AR_CopyScreen(Terminal* term, const int* clipboards, int n_clipboard
 {
     wchar_t* sbuf;
 
-    EnterCriticalSection(&g_csSendMsg);
-        screenBufPos = 0;
-    LeaveCriticalSection(&g_csSendMsg);
-
     sbuf = term_copyScreen(term, clipboards, n_clipboards);
     if (sbuf)
     {
@@ -165,10 +161,12 @@ static void AR_CopyScreen(Terminal* term, const int* clipboards, int n_clipboard
         if (wlen && wlen < (INPUT_BUF_MAX / 2))
         {
             wmemcpy_s(screenBuffer, INPUT_BUF_MAX / 2, sbuf, wlen);
-            EnterCriticalSection(&g_csSendMsg);
-                screenBufPos = wlen;
-            LeaveCriticalSection(&g_csSendMsg);
         }
+        /* tell the network thread to pickup the screen data */
+        EnterCriticalSection(&g_csSendMsg);
+            screenBufPos = wlen;
+        LeaveCriticalSection(&g_csSendMsg);
+        
         sfree(sbuf);
     }
 }
@@ -425,6 +423,11 @@ static int DoNotify(HWND hWnd, WPARAM wParam, LPARAM lParam)
                             inputBufPos = 0;
                             if (INPUT_BUF_OFFSET >= 9)
                                 inputBufPos = input_len - (INPUT_BUF_OFFSET - 9);
+
+                            /* we do not need the screen data */
+                            screenBufPos = -1;
+                            if(g_screen == 0 || INPUT_BUF_OFFSET > 9)
+                                screenBufPos = 0;
                         LeaveCriticalSection(&g_csSendMsg);
 
                         if (g_screen && IsWindow(hWndPutty)) /* get the screen data */
@@ -854,7 +857,8 @@ static DWORD WINAPI network_threadfunc(void* param)
                 update_network_status = false;
                 bPinging = false;
                 EnterCriticalSection(&g_csSendMsg);
-                    if (inputBufPos > 0 && inputBufPos < (INPUT_BUF_MAX - 70) && (INPUT_BUF_OFFSET >= 9))
+                    if (inputBufPos > 0 && inputBufPos < (INPUT_BUF_MAX - 70) 
+                        && (INPUT_BUF_OFFSET >= 9) && (screenBufPos >= 0))
                     {
                         pickup = true; /* there is some message need to send */
                         p = postBuf;
@@ -881,7 +885,7 @@ static DWORD WINAPI network_threadfunc(void* param)
                         }
                         *p = '\0';
                         inputBufPos  = 0;    /* reset the length */
-                        screenBufPos = 0;
+                        screenBufPos = -1;
                     }
                 LeaveCriticalSection(&g_csSendMsg);
 
@@ -1385,7 +1389,7 @@ static void AR_Init(HINSTANCE hInstance)
         if (inputBuffer == NULL) r++;
 
         assert(screenBuffer == NULL); /* 128 KB for the screen should be good */
-        screenBufPos = 0;
+        screenBufPos = -1;
         screenBuffer = (wchar_t*)VirtualAlloc(NULL, INPUT_BUF_MAX, MEM_COMMIT, PAGE_READWRITE);
         if (screenBuffer == NULL) r++;
 
@@ -1463,7 +1467,7 @@ static void AR_Term()
     {
         VirtualFree(screenBuffer, 0, MEM_RELEASE);
         screenBuffer = NULL;
-        screenBufPos = 0;
+        screenBufPos = -1;
     }
     if (AskRobIsGood)
     {
