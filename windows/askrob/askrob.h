@@ -70,7 +70,6 @@ typedef struct MessageTask
 {
     struct MessageTask* next;
     volatile LONG  state;
-    U8  message_type;
     U8* message;
     U32 message_length;
 } MessageTask;
@@ -140,8 +139,10 @@ static RECT g_rectClient = { 0 }; /* to cache the client area of the main chat w
 
 static U8*       inputBuffer = NULL;
 static int       inputBufPos = 0;
-static wchar_t*  screenBuffer = NULL;
-static int       screenBufPos = -1;
+
+static wchar_t*  screenBufferN = NULL; /* the string contain \n, not \r\n */
+static wchar_t*  screenBuffer  = NULL;
+static int       screenBufPos  = -1;
 
 static U8* prev_chatdata = NULL;
 
@@ -738,7 +739,7 @@ size_t Curl_Write_Callback(char* ptr, size_t size, size_t nmemb, void* userdata)
             }
         }
 
-        length = sizeof(MessageTask) + (U32)realsize + 9 ;
+        length = sizeof(MessageTask) + (U32)realsize + 9;
         mt = (MessageTask*)malloc(AR_ALIGN_DEFAULT(length + 1));
         if (mt)
         {
@@ -746,11 +747,10 @@ size_t Curl_Write_Callback(char* ptr, size_t size, size_t nmemb, void* userdata)
             MessageTask* mp;
             MessageTask* mq;
 
-            mt->next  = NULL;
-            mt->state = 0;
-            mt->message_type = 0;
+            mt->next           = NULL;
+            mt->state          = 0;
             mt->message_length = (U32)realsize + 9;
-            mt->message = ((U8*)mt) + sizeof(MessageTask);
+            mt->message        = ((U8*)mt) + sizeof(MessageTask);
             p = mt->message;
             for (U8 i = 0; i < 9; i++) *p++ = reply_head[i];
             memcpy(p, ptr, realsize);
@@ -759,30 +759,29 @@ size_t Curl_Write_Callback(char* ptr, size_t size, size_t nmemb, void* userdata)
 
             EnterCriticalSection(&g_csReceMsg);
             /////////////////////////////////////////////////
-            mp = g_mtIncoming;
-            while (mp) // scan the link to find the message that has been processed
-            {
-                mq = mp->next;
-                if (mp->state == 0) // this task is not processed yet.
-                    break;
-                free(mp);
-                mp = mq;
-            }
-            g_mtIncoming = mp;
-            if (g_mtIncoming == NULL)
-            {
-                g_mtIncoming = mt;
-            }
-            else
-            {
-                while (mp->next) mp = mp->next;
-                mp->next = mt;  // put task as the last node
-            }
+                mp = g_mtIncoming;
+                while (mp) // scan the link to find the message that has been processed
+                {
+                    mq = mp->next;
+                    if (mp->state == 0) // this task is not processed yet.
+                        break;
+                    free(mp);
+                    mp = mq;
+                }
+                g_mtIncoming = mp;
+                if (g_mtIncoming == NULL)
+                {
+                    g_mtIncoming = mt;
+                }
+                else
+                {
+                    while (mp->next) mp = mp->next;
+                    mp->next = mt;  // put task as the last node
+                }
             /////////////////////////////////////////////////
             LeaveCriticalSection(&g_csReceMsg);
         }
     }
-
     return realsize;
 }
 
@@ -848,7 +847,9 @@ static DWORD WINAPI network_threadfunc(void* param)
             CURLcode rc;             
             bool pickup, update_network_status;
             U32 status, i, utf8len, postLen = 0;
+            U32 screenBufPosN;
             U8* p;
+            wchar_t* wp;
             while (0 == g_Quit)
             {
                 Sleep(500);
@@ -862,20 +863,31 @@ static DWORD WINAPI network_threadfunc(void* param)
                     {
                         pickup = true; /* there is some message need to send */
                         p = postBuf;
-                        for (i = 0; i < 67; i++) *p++ = g_appKey[i];
+                        for (i = 0; i < 67; i++) *p++ = g_appKey[i]; /* the first 67 bytes are fixed */
                         memcpy(p, inputBuffer + INPUT_BUF_OFFSET, inputBufPos);
                         p += inputBufPos;
                         postLen = 67 + inputBufPos;
-                        /* we need to include screen data */
+                        /* check if we need to include screen data */
                         if (g_screen && screenBufPos > 0 && (INPUT_BUF_OFFSET == 9)) 
                         {
+                            /* convert \r\n to \n */
+                            screenBufPosN = 0;
+                            wp = screenBufferN;
+                            for (i = 0; i < screenBufPos; i++)
+                            {
+                                if (screenBuffer[i] != L'\r')
+                                {
+                                    *wp++ = screenBuffer[i];
+                                    screenBufPosN++;
+                                }
+                            }
                             utf8len = 0;
-                            status = wt_UTF16ToUTF8(screenBuffer, screenBufPos, NULL, &utf8len);
+                            status = wt_UTF16ToUTF8(screenBufferN, screenBufPosN, NULL, &utf8len);
                             if (status == WT_OK && utf8len && utf8len < INPUT_BUF_MAX)
                             {
                                 *p++ = '"'; *p++ = '"'; *p++ = '"'; *p++ = '\n';
                                 postLen += 4;
-                                status = wt_UTF16ToUTF8(screenBuffer, screenBufPos, p, NULL);
+                                status = wt_UTF16ToUTF8(screenBufferN, screenBufPosN, p, NULL);
                                 assert(status == WT_OK);
                                 p += utf8len;
                                 postLen += utf8len;
@@ -883,9 +895,9 @@ static DWORD WINAPI network_threadfunc(void* param)
                                 postLen += 4;
                             }
                         }
-                        *p = '\0';
+                        *p = '\0'; /* zero-terminated string */
                         inputBufPos  = 0;    /* reset the length */
-                        screenBufPos = -1;
+                        screenBufPos = -1;   /* reset the length */
                     }
                 LeaveCriticalSection(&g_csSendMsg);
 
@@ -924,8 +936,9 @@ static DWORD WINAPI network_threadfunc(void* param)
                         InterlockedExchange(&g_NetworkStatus, NETWORK_GOOD);
                     }
                 }
-                else if((pingCount % 10) == 0) /* every 5 seconds */
+                else if(IsWindow(hWndAskRob) && (pingCount % 10) == 0) /* if hWndAskRob is not the window, we do not need to ping */
                 {
+                    /* every 5 seconds we will try to ping the server */
                     update_network_status = true;
                     InterlockedExchange(&g_NetworkStatus, NETWORK_BAD);
                     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, " ");
@@ -936,7 +949,6 @@ static DWORD WINAPI network_threadfunc(void* param)
                         InterlockedExchange(&g_NetworkStatus, NETWORK_GOOD);
                     }
                 }
-
                 if(update_network_status && IsWindow(hWndAskRob))
                 {
                     /* update the network status in UI thread */
@@ -966,7 +978,7 @@ static DWORD WINAPI askrob_threadfunc(void* param)
     width  = rectChat.right - rectChat.left;
     height = rectChat.bottom - rectChat.top;
 
-    if (width <= 0) width = 480;
+    if (width <= 0)  width = 480;
     if (height <= 0) height = 800;
 
     hWndAskRob = CreateWindowExW(
@@ -1030,16 +1042,16 @@ static void StartupAskRob_UI_Thread(RECT* pos)
 
     if (pos) /* this is a position of Putty window so we set chat window right beside it */
     {
-        int w = rc->right - rc->left;
+        int w = rc->right  - rc->left;
         int h = rc->bottom - rc->top;
-        rc->left = pos->right + 10;
-        rc->top = pos->top;
-        rc->right = rc->left + w;
-        rc->bottom = rc->top + h;
+
+        rc->left   = pos->right + 10;
+        rc->top    = pos->top;
+        rc->right  = rc->left + w;
+        rc->bottom = rc->top  + h;
     }
 
     hThread = CreateThread(NULL, 0, askrob_threadfunc, rc, 0, &in_threadid);
-
     if (hThread)
         CloseHandle(hThread);          /* we don't need the thread handle */
 }
@@ -1051,7 +1063,6 @@ static void StartupAskRob_UI_Thread(RECT* pos)
 static void SetDeaultSettings()
 {
     U8 i;
-
     /* initialize the integer parameters to the default value */
     g_AutoLogging     = 1;
     g_AskRobAtStartUp = 1;
@@ -1108,7 +1119,7 @@ static bool Json_Parsing(const char* jdata)
         cJSON* proxytp = cJSON_GetObjectItemCaseSensitive(json, "proxy_type");
         cJSON* proxy   = cJSON_GetObjectItemCaseSensitive(json, "proxy");
 
-        /* at least we need to the gehe application's key from conf.json */
+        /* at least we need to the get the application's key from conf.json */
         if (cJSON_IsString(key))
         {
             length = (U8)strlen(key->valuestring);
@@ -1204,7 +1215,6 @@ static bool Json_Parsing(const char* jdata)
                 }
             }
         }
-
         cJSON_Delete(json);
     }
     return bRet;
@@ -1218,7 +1228,7 @@ static bool LoadConfiguration(HINSTANCE hInstance)
 {
     bool bRet = false;
     DWORD len, idx;
-    
+    /* find the full path of the .EXE file */
     len = GetModuleFileNameW(hInstance, g_cnfFile, MAX_PATH);
     idx = 0;
     if (len > 0) /* we get the full path of the .exe file */
@@ -1324,7 +1334,6 @@ static bool LoadConfiguration(HINSTANCE hInstance)
             bRet = Json_Parsing(default_conf_json);
         }
     }
-
     return bRet;
 }
 
@@ -1340,20 +1349,19 @@ static void AR_Init(HINSTANCE hInstance)
     hInstAskRob = hInstance;  /* cache the global HINSTANCE for some function calls */
     AskRobIsGood = FALSE;     /* a global variable to indicate AskRob is ready or not */
 
-    g_Quit = 0;       /* this two are global signal to let some threads to quit gracefully */
-    g_QuitAskRob = 0;
-    g_threadCount = 0;
-    g_NetworkStatus = NETWORK_BAD;
+    g_Quit          = 0;           /* this is global signal to let some threads to quit gracefully */
+    g_QuitAskRob    = 0;           /* this is the singal to quit AskRob UI thread */
+    g_threadCount   = 0;           /* we use this counter to be sure all threads exit gracefully in the end */
+    g_NetworkStatus = NETWORK_BAD; /* at first we assume the network is not connectable */
 
-    INPUT_WIN_HEIGHT = 140;
-    INPUT_BUF_OFFSET = 0;
+    INPUT_WIN_HEIGHT = 140;    /* the height of the input window */
+    INPUT_BUF_OFFSET = 0;      /* offset of the real data in the inputBuffer */
 
     assert(prev_chatdata == NULL);
     prev_chatdata = NULL;  /* this buffer is used to save the previous chat data so we can restore it later */
 
     InitializeCriticalSection(&g_csSendMsg);  /* these two are Critial Sections to sync different threads */
     InitializeCriticalSection(&g_csReceMsg);
-
 
     if (LoadConfiguration(hInstance)) /* load the configuration information from conf.json */
     {
@@ -1393,6 +1401,10 @@ static void AR_Init(HINSTANCE hInstance)
         screenBuffer = (wchar_t*)VirtualAlloc(NULL, INPUT_BUF_MAX, MEM_COMMIT, PAGE_READWRITE);
         if (screenBuffer == NULL) r++;
 
+        assert(screenBufferN == NULL); /* 128 KB for the screen should be good */
+        screenBufferN = (wchar_t*)VirtualAlloc(NULL, INPUT_BUF_MAX, MEM_COMMIT, PAGE_READWRITE);
+        if (screenBufferN == NULL) r++;
+
         /* load the bitmap resource from the resource */
         bmpQuestion = LoadBitmap(hInstance, MAKEINTRESOURCE(IDB_QUESTION));
         if (bmpQuestion == NULL) r++;
@@ -1417,7 +1429,7 @@ static void AR_Init(HINSTANCE hInstance)
         hCursorNS   = LoadCursor(NULL, IDC_SIZENS);
         if(hCursorNS == NULL) r++;
 
-        if (r == 0)
+        if (r == 0) /* r is 0 means everything looks good during the intialization phase */
         {
             DWORD in_threadid; /* required for Win9x */
             HANDLE hThread;
@@ -1443,15 +1455,29 @@ static void AR_Init(HINSTANCE hInstance)
  */
 static void AR_Term()
 {
-    UINT tries = 10;
+    MessageTask* mp;
+    MessageTask* mq;
+    UINT tries;
     /* tell all threads to quit gracefully */
     InterlockedIncrement(&g_Quit); 
+
     /* wait the threads to quit */
+    tries = 10;
     while (g_threadCount && tries > 0) 
     {
         Sleep(1000);
         tries--;
     }
+    /* free the incoming message queue */
+    mp = g_mtIncoming;
+    while (mp)
+    {
+        mq = mp->next;
+        free(mp);
+        mp = mq;
+    }
+    g_mtIncoming = NULL;
+
     if (prev_chatdata)
     {
         free(prev_chatdata);
@@ -1468,6 +1494,11 @@ static void AR_Term()
         VirtualFree(screenBuffer, 0, MEM_RELEASE);
         screenBuffer = NULL;
         screenBufPos = -1;
+    }
+    if (screenBufferN)
+    {
+        VirtualFree(screenBufferN, 0, MEM_RELEASE);
+        screenBufferN = NULL;
     }
     if (AskRobIsGood)
     {
