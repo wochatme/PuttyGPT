@@ -39,58 +39,7 @@ PuttyGTP is always open-sourced and free for the basic chating service.
 
 If you are familar with Putty, then you have little issue to learn how to use PuttyGPT. It is just another Putty, but with AI chating ablility.
 
-When it is the first time for PuttyGPT to run, it will check if there is a configuration file called conf.json in the same directory. If it cannot find this file, putty.exe will generate a conf.json file filled with the default parameters. The below is the default content of conf.json:
-
-```
-{
-"key" : "03339A1C8FDB6AFF46845E49D120E0400021E161B6341858585C2E25CA3D9C01CA",
-"url" : "https://www.wochat.ai/v1",
-"font0" : "Courier New",
-"font1" : "Courier New",
-"fsize0" : 11,
-"fsize1" : 11,
-"startchat" : 1,
-"screen" : 1,
-"autologging" : 1,
-"proxy_type" : 0,
-"proxy" : ""
-}
-```
-
-You can modify the values of the parameters and restart PuttyGPT to make your change to be effective.
-
-In the above parameter steetings, the most important thing is the "key". wochat.ai will use this key value to identify the user. The default key is a free-for-ever key you can use. Or you can go to https://www.wochat.ai to register a new account and generate a new key to get more professional service.
-
-Let me explain the meaning of these parameters:
-- key : a 66-byte long string only contains 0-9 and A-Z. The backend server will use this key to identify the authorized user.
-- url : this is the interface where PuttyGPT will send the request to. Usually you do not need to change it.
-- font0 : the font name of the chat window. This is the upper window in the robot chat window. You can change it to another font name such as "Arial", etc.
-- font1 : the font name of the input window. This is the lower window in the robot chat window where you can input your question.
-- fsize0 : the font size for font0. 11 is a good default value. But you can enlarge it to 13 or 36 to try to get the best size you like.
-- fsize1 : the font size for font1.
-- startchat : if this parameter is 0, the robot chat window will not pop up when you start PuttyGPT. Non-zero value means the robot chat window will pop out when you connect to your server. 
-- autologging: if this parameter is non-zero, PuttyGPT will save all the chat history into the log files like log_xxxx.txt. xxxx is the process Id of your PuttyGPT. Where this parameter is 0, PuttyGPT will not record your chat history.
-
-If you connect to the internet by using some proxy, you need to configure the below two parameters:
-- proxy_type : The value is from 0 to 8. Zero means no proxy. This is the common case. The value 1 to 8 represent different proxy type that libCurl supports.
-- proxy : if proxy_type is non-zero, we will use this parameter to configure your proxy settings. 
-
-For better understanding for proxy settings, please check the below link as a good start point:
-
-https://curl.se/libcurl/c/CURLOPT_PROXYTYPE.html
-
-The proxy_type values is:
-- 0 : no proxy
-- 1 : CURLPROXY_HTTP
-- 2 : CURLPROXY_HTTP_1_0
-- 3 : CURLPROXY_HTTPS
-- 4 : CURLPROXY_HTTPS2
-- 5 : CURLPROXY_SOCKS4
-- 6 : CURLPROXY_SOCKS5
-- 7 : CURLPROXY_SOCKS4A
-- 8 : CURLPROXY_SOCKS5_HOSTNAME
-
-For each proxy type, you need to specify the values of "proxy". The value of "proxy" is the null-terminated string holding the hostname or dotted numerical IP address. Please check https://curl.se/libcurl/c/CURLOPT_PROXY.html for the detailed meaning for different proxy settings.
+Please check the [FAQ](askrob/faq.md) for the detailed tips about how to use PuttyGPT.
 
 ## How To Download PuttyGPT?
 
@@ -105,11 +54,12 @@ Maybe you do not trust the pre-compiled program we provided, then you can compil
 
 ## How To Build PuttyGPT From Source Code?
 
-Please check our [Build Guide](askrob/build.md) for the details. This is a step-by-step guide that is very friendly to the junior users who have little experience in C programming. Just read it, try it. You will learn some useful build knowledge from this document.
+Please check the [Build Guide](askrob/build.md) for the details. This is a step-by-step guide that is very friendly to the junior users who have little experience in C programming. Just read it, try it. You will learn some useful build knowledge from this document.
 
 ## FeedBack
 
-If you have any question, please shoot the email to wochatdb@gmail.com 
+If you have any question, please shoot the email to support@wochat.ai
 
 Enjoy PuttyGPT, enjoy AI era!
+
 
