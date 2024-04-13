@@ -39,7 +39,7 @@ static const char* tip_networkstatus = "Network Status: green is good, red is ba
 
 static const char* default_conf_json =
 "{\n\"key\" : \"03339A1C8FDB6AFF46845E49D120E0400021E161B6341858585C2E25CA3D9C01CA\",\n"
-"\"url\" : \"https://www.wochat.org/v1\",\n"
+"\"url\" : \"https://www.wochat.ai/v1\",\n"
 "\"font0\" : \"Courier New\",\n"
 "\"font1\" : \"Courier New\",\n"
 "\"fsize0\" : 11,\n"
@@ -48,19 +48,22 @@ static const char* default_conf_json =
 "\"startchat\" : 1,\n"
 "\"screen\" : 1,\n"
 "\"autologging\" : 1,\n"
+"\"timeout\" : 30,\n"
 "\"proxy_type\" : 0,\n"
 "\"proxy\" : \"\"\n}\n";
 
 /* the variables to save configuration information */
 static const char* defaultFont = "Courier New";
-static const char* defaultURL  = "https://www.wochat.org/v1";
+static const char* defaultURL  = "https://www.wochat.ai/v1";
 
-static U8  g_appKey[67] = { 0 };
-static U8  g_url[256]   = { 0 };
-static U8  g_font0[32]  = { 0 };
-static U8  g_font1[32]  = { 0 };
+static U8  g_session[65] = { 0 };
+static U8  g_appKey[67]  = { 0 };
+static U8  g_url[256]    = { 0 };
+static U8  g_font0[32]   = { 0 };
+static U8  g_font1[32]   = { 0 };
 static U32 g_fsize0          = 1100;
 static U32 g_fsize1          = 1100;
+static U16 g_timeout         = 30;
 static U8  g_AskRobAtStartUp = 1;
 static U8  g_AutoLogging     = 1;
 static U8  g_screen          = 1;
@@ -448,7 +451,6 @@ static int DoNotify(HWND hWnd, WPARAM wParam, LPARAM lParam)
 }
 
 static RECT rcPaint = { 0 };
-
 /* the main window proc for AI chat window */
 static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -710,17 +712,63 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
     return DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
 
-static const char reply_head[] = {'\n',0xF0,0x9F,0x99,0x82,'\n','-','-','\n',0 };
+static const char reply_head[] = { '\n',0xF0,0x9F,0x99,0x82,'\n','-','-','\n',0 };
+static void PushIntoQueue(char* message, U32 length)
+{
+    MessageTask* mt = NULL;
+    U32 total_length = sizeof(MessageTask) + length + 9;
+    mt = (MessageTask*)malloc(AR_ALIGN_DEFAULT(total_length + 1));
+    if (mt)
+    {
+        U8* p;
+        MessageTask* mp;
+        MessageTask* mq;
+
+        mt->next = NULL;
+        mt->state = 0;
+        mt->message_length = length + 9;
+        mt->message = ((U8*)mt) + sizeof(MessageTask);
+        p = mt->message;
+        for (U8 i = 0; i < 9; i++) *p++ = reply_head[i];
+        memcpy(p, message, length);
+        mt->message[mt->message_length - 1] = '\n';
+        mt->message[mt->message_length] = 0;
+
+        EnterCriticalSection(&g_csReceMsg);
+        /////////////////////////////////////////////////
+        mp = g_mtIncoming;
+        while (mp) // scan the link to find the message that has been processed
+        {
+            mq = mp->next;
+            if (mp->state == 0) // this task is not processed yet.
+                break;
+            free(mp);
+            mp = mq;
+        }
+        g_mtIncoming = mp;
+        if (g_mtIncoming == NULL)
+        {
+            g_mtIncoming = mt;
+        }
+        else
+        {
+            while (mp->next) mp = mp->next;
+            mp->next = mt;  // put task as the last node
+        }
+        /////////////////////////////////////////////////
+        LeaveCriticalSection(&g_csReceMsg);
+    }
+}
+
 static bool bPinging = false;
-size_t Curl_Write_Callback(char* ptr, size_t size, size_t nmemb, void* userdata)
+size_t CurlWriteCallback(char* message, size_t size, size_t nmemb, void* userdata)
 {
     size_t realsize = size * nmemb;
 
-    if (bPinging == false && ptr && realsize > 0)
+    if (bPinging == false && message && realsize > 0)
     {
-        U32 length;
-        MessageTask* mt = NULL;
-        
+        PushIntoQueue(message, (U32)realsize);
+
         if (g_AutoLogging)
         {
             int fd = 0;
@@ -738,52 +786,9 @@ size_t Curl_Write_Callback(char* ptr, size_t size, size_t nmemb, void* userdata)
                     st.wSecond
                 );
                 _write(fd, tmpbuf, strlen(tmpbuf));
-                _write(fd, ptr, realsize);
+                _write(fd, message, realsize);
                 _close(fd);
             }
-        }
-
-        length = sizeof(MessageTask) + (U32)realsize + 9;
-        mt = (MessageTask*)malloc(AR_ALIGN_DEFAULT(length + 1));
-        if (mt)
-        {
-            U8* p;
-            MessageTask* mp;
-            MessageTask* mq;
-
-            mt->next           = NULL;
-            mt->state          = 0;
-            mt->message_length = (U32)realsize + 9;
-            mt->message        = ((U8*)mt) + sizeof(MessageTask);
-            p = mt->message;
-            for (U8 i = 0; i < 9; i++) *p++ = reply_head[i];
-            memcpy(p, ptr, realsize);
-            mt->message[mt->message_length - 1] = '\n';
-            mt->message[mt->message_length] = 0;
-
-            EnterCriticalSection(&g_csReceMsg);
-            /////////////////////////////////////////////////
-                mp = g_mtIncoming;
-                while (mp) // scan the link to find the message that has been processed
-                {
-                    mq = mp->next;
-                    if (mp->state == 0) // this task is not processed yet.
-                        break;
-                    free(mp);
-                    mp = mq;
-                }
-                g_mtIncoming = mp;
-                if (g_mtIncoming == NULL)
-                {
-                    g_mtIncoming = mt;
-                }
-                else
-                {
-                    while (mp->next) mp = mp->next;
-                    mp->next = mt;  // put task as the last node
-                }
-            /////////////////////////////////////////////////
-            LeaveCriticalSection(&g_csReceMsg);
         }
     }
     return realsize;
@@ -805,9 +810,10 @@ static DWORD WINAPI network_threadfunc(void* param)
 
         curl_easy_setopt(curl, CURLOPT_URL, g_url);
         curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, g_timeout);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, Curl_Write_Callback);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, CurlWriteCallback);
 
         if (g_proxy_type && g_proxy[0])
         {
@@ -868,9 +874,10 @@ static DWORD WINAPI network_threadfunc(void* param)
                         pickup = true; /* there is some message need to send */
                         p = postBuf;
                         for (i = 0; i < 67; i++) *p++ = g_appKey[i]; /* the first 67 bytes are fixed */
+                        for (i = 0; i < 65; i++) *p++ = g_session[i]; /* this 65 bytes are session id */
                         memcpy(p, inputBuffer + INPUT_BUF_OFFSET, inputBufPos);
                         p += inputBufPos;
-                        postLen = 67 + inputBufPos;
+                        postLen = 67 + 65 + inputBufPos;
                         /* check if we need to include screen data */
                         if (g_screen && screenBufPos > 0 && (INPUT_BUF_OFFSET == 9)) 
                         {
@@ -925,7 +932,7 @@ static DWORD WINAPI network_threadfunc(void* param)
                             );
 
                             _write(fd, tmpbuf, strlen(tmpbuf));
-                            _write(fd, postBuf + 67, postLen - 67);
+                            _write(fd, postBuf + 67 + 65, postLen - 67 - 65);
                             _close(fd);
                         }
                     }
@@ -938,6 +945,12 @@ static DWORD WINAPI network_threadfunc(void* param)
                     if(rc == CURLE_OK)
                     {
                         InterlockedExchange(&g_NetworkStatus, NETWORK_GOOD);
+                    }
+                    else
+                    {
+                        char msg[64] = { 0 };
+                        sprintf_s(msg, 64, "The return code of libCurl is: %d", rc);
+                        PushIntoQueue(msg, (U32)strlen(msg));
                     }
                 }
                 else if(IsWindow(hWndAskRob) && (pingCount % 10) == 0) /* if hWndAskRob is not the window, we do not need to ping */
@@ -1071,6 +1084,7 @@ static void SetDeaultSettings()
     g_AutoLogging     = 1;
     g_AskRobAtStartUp = 1;
     g_proxy_type      = 0;
+    g_timeout         = 30;
     g_fsize0          = 1100;
     g_fsize1          = 1100;
     g_screen          = 1;
@@ -1122,6 +1136,7 @@ static bool Json_Parsing(const char* jdata)
         cJSON* height  = cJSON_GetObjectItemCaseSensitive(json, "height");
         cJSON* startct = cJSON_GetObjectItemCaseSensitive(json, "startchat");
         cJSON* autolog = cJSON_GetObjectItemCaseSensitive(json, "autologging");
+        cJSON* timeout = cJSON_GetObjectItemCaseSensitive(json, "timeout");
         cJSON* proxytp = cJSON_GetObjectItemCaseSensitive(json, "proxy_type");
         cJSON* proxy   = cJSON_GetObjectItemCaseSensitive(json, "proxy");
 
@@ -1210,6 +1225,12 @@ static bool Json_Parsing(const char* jdata)
         {
             g_AutoLogging = (U8)(autolog->valueint);
         }
+        if (cJSON_IsNumber(timeout)) /* the proxy type range from 0 to 8 */
+        {
+            g_timeout = (U8)(timeout->valueint);
+            if (g_timeout < 5) g_timeout = 5;
+            if (g_timeout > 600) g_timeout = 600;
+        }
 
         if (cJSON_IsNumber(proxytp)) /* the proxy type range from 0 to 8 */
         {
@@ -1261,7 +1282,18 @@ static bool LoadConfiguration(HINSTANCE hInstance)
     if (idx > 0 && idx < (MAX_PATH - 20)) 
     {
         int fd = 0;
+        U8 randomize[32] = { 0 };
+
         DWORD pid = GetCurrentProcessId(); 
+
+        /* generate a randome session id */
+        if (BCryptGenRandom(NULL, randomize, 32, BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0)
+        {
+            wt_sha256_hash((U8*)(&pid), sizeof(DWORD), randomize);
+        }
+        wt_Raw2HexString(randomize, 32, g_session, NULL);
+        g_session[64] = '|';
+
         /* we use the current process id as the postfix of the log file */
         swprintf_s(g_logFile, MAX_PATH, L"%s\\log_%u.txt", g_cnfFile, pid);
         /* make the file name of conf.json */
