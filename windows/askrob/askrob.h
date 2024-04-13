@@ -1282,20 +1282,37 @@ static bool LoadConfiguration(HINSTANCE hInstance)
     if (idx > 0 && idx < (MAX_PATH - 20)) 
     {
         int fd = 0;
-        U8 randomize[32] = { 0 };
+        U8 hash[32];
+        U8 rnd[256];
 
         DWORD pid = GetCurrentProcessId(); 
 
-        /* generate a randome session id */
-        if (BCryptGenRandom(NULL, randomize, 32, BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0)
-        {
-            wt_sha256_hash((U8*)(&pid), sizeof(DWORD), randomize);
-        }
-        wt_Raw2HexString(randomize, 32, g_session, NULL);
-        g_session[64] = '|';
-
         /* we use the current process id as the postfix of the log file */
         swprintf_s(g_logFile, MAX_PATH, L"%s\\log_%u.txt", g_cnfFile, pid);
+
+        /* generate a randome session id */
+        if (BCryptGenRandom(NULL, rnd, 256, BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0)
+        {
+            /* if the OS cannot generate the random data, we use PID and TID as the random data */
+            U8* p;
+            DWORD tid = GetCurrentThreadId();
+
+            p = (U8*)(&pid);
+            rnd[0] = *p++;
+            rnd[1] = *p++;
+            rnd[2] = *p++;
+            rnd[3] = *p;
+
+            p = (U8*)(&tid);
+            rnd[4] = *p++;
+            rnd[5] = *p++;
+            rnd[6] = *p++;
+            rnd[7] = *p;
+        }
+        wt_sha256_hash(rnd, 256, hash);
+        wt_Raw2HexString(hash, 32, g_session, NULL);
+        g_session[64] = '|';
+
         /* make the file name of conf.json */
         g_cnfFile[idx +  0] = L'\\';
         g_cnfFile[idx +  1] = L'c';
