@@ -12,9 +12,9 @@ Absolutely! The development of PuttyGPT is based on the mature codebase of Putty
 
 Because the Gemini Pro from Google is free, so the basic chat service of PuttyGPT is based on Gemini Pro and it is free. But there are some limitations for the basic chat service. These limitations are not from us, but from Google. Please refer the document of Google Gemini for more details.
 
-### What is "conf.json"?
+### What is "conf.txt"?
 
-conf.json is the configuration file of PuttyGPT. It is a text file with json format. It is located in the same directory as "puttygpt.exe". When "puttygpt.exe" is launched, it will check if conf.json is exsiting. If not, conf.json with default parameters will be created. After you edit the parameters in conf.json, you have to restart "puttygpt.exe" to make the change effective.
+conf.txt is the configuration file of PuttyGPT. It is a text file with json format. It is located in the same directory as "puttygpt.exe". When "puttygpt.exe" is launched, it will check if conf.txt is exsiting. If not, conf.txt with default parameters will be created. After you edit the parameters in conf.txt, you have to restart "puttygpt.exe" to make the change effective.
 
 ### Does PuttyGPT Gather My Sensitive Data?
 
@@ -22,17 +22,17 @@ By default, when you ask the question by using PuttyGPT, the current output of y
 
 If your Putty window contains sensitive data that you do not want to share with AI, there are three options:
 
-- In conf.json file there is a parameter called “screen”. If you set this parameter to 0, then your screen data will not be sent to AI at all.
+- In conf.txt file there is a parameter called “screen”. If you set this parameter to 0, then your screen data will not be sent to AI at all.
 - When you ask question, add "--"(two minus signs) at the beginning of your question, then the screen data will not be sent to AI.
 - PuttyGPT only sends the data you can see from the Putty window, so you can scroll up or scroll down to move your sensitive data out of Putty window. Or you can run some screen clearance command such as "clear" on Linux/MacOS or "cls" on DOS command line to clear the screen before you ask the question.
 
-### How To Use "conf.json"?
+### How To Use "conf.txt"?
 
-conf.json is a pure text-format file and here is the default content of it:
+conf.txt is a pure text-format file and here is the default content of it:
 ```json
 {
 "key" : "03339A1C8FDB6AFF46845E49D120E0400021E161B6341858585C2E25CA3D9C01CA",
-"url" : "https://www.wochat.org/v1",
+"url" : "https://www.wochat.ai/v1",
 "font0" : "Courier New",
 "font1" : "Courier New",
 "fsize0" : 11,
@@ -41,6 +41,7 @@ conf.json is a pure text-format file and here is the default content of it:
 "startchat" : 1,
 "screen" : 1,
 "autologging" : 1,
+"timeout" : 30,
 "proxy_type" : 0,
 "proxy" : ""
 }
@@ -57,11 +58,12 @@ The meaning for each parameter is described in the below:
 - startchat : start the AI chat window when the Putty window is created if this value is non-zero. Zero will prevent the creation of AI chat window.
 - screen : If this value is non-zero, the output of your Putty window will be sent to AI when you raise question. Zero will prevent this behavior.
 - autologging : If this value is non-zero, a log_xxxx.txt will created for each Putty session. All your detailed chat history will be saved into this log file. Zero will prevent this behavior.
+- timeout : sepcify one HTTPS operation's timeout time, in seconds. The value is between 5 and 600.
 - proxy_type : If this value is zero, your connection to AI has no proxy. This is the common case today. But if you use proxy to connect to the internet, you need to set the value of this parameter to non-zero and set the value of "proxy" as well. Please refer the next question.
 - proxy : set this parameter when you are using proxy to connect to the internet. Please refer the next question.
 
 ### How To Set Proxy
-If you are using proxy to connect to the internet, you need to set the parameters of "proxy_type" and "proxy" in conf.json. In the source code, PuttyGPT use the two functions in the below to set the proxy:
+If you are using proxy to connect to the internet, you need to set the parameters of "proxy_type" and "proxy" in conf.txt. In the source code, PuttyGPT use the two functions in the below to set the proxy:
 ```
 curl_easy_setopt(curl, CURLOPT_PROXYTYPE, pxtype);
 curl_easy_setopt(curl, CURLOPT_PROXY, proxy);
@@ -105,6 +107,17 @@ Please check the libCurl document for more details about the parameters like "CU
 For better understanding for proxy settings, please check the below link as a good start point:
 
 https://curl.se/libcurl/c/CURLOPT_PROXYTYPE.html
+
+
+### How to Prevent the Chat Window to Pop Out When I Start PuttyGPT?
+
+Please modify conf.txt and set "startchat" to 0, then restart PuttyGPT.
+
+
+### I Closed the Chat Window, How to Bring It Back?
+
+Use mouse to right-click the title of Putty window, and in the bottom of the menu, there is a item called "Ask Rob", choose it.
+
 
 ### How To Make a New Line in Input Window?
 When you hit the ENTER key, your question will be sent to AI. You can use "Ctrl + Enter" to make a new line. That is: hold the CTRL key when you press ENTER key.

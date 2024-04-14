@@ -1314,17 +1314,16 @@ static bool LoadConfiguration(HINSTANCE hInstance)
         g_session[64] = '|';
 
         /* make the file name of conf.json */
-        g_cnfFile[idx +  0] = L'\\';
-        g_cnfFile[idx +  1] = L'c';
-        g_cnfFile[idx +  2] = L'o';
-        g_cnfFile[idx +  3] = L'n';
-        g_cnfFile[idx +  4] = L'f';
-        g_cnfFile[idx +  5] = L'.';
-        g_cnfFile[idx +  6] = L'j';
-        g_cnfFile[idx +  7] = L's';
-        g_cnfFile[idx +  8] = L'o';
-        g_cnfFile[idx +  9] = L'n';
-        g_cnfFile[idx + 10] = L'\0';
+        g_cnfFile[idx + 0] = L'\\';
+        g_cnfFile[idx + 1] = L'c';
+        g_cnfFile[idx + 2] = L'o';
+        g_cnfFile[idx + 3] = L'n';
+        g_cnfFile[idx + 4] = L'f';
+        g_cnfFile[idx + 5] = L'.';
+        g_cnfFile[idx + 6] = L't';
+        g_cnfFile[idx + 7] = L'x';
+        g_cnfFile[idx + 8] = L't';
+        g_cnfFile[idx + 9] = L'\0';
 
         if(TRUE)
         {  /* check if the conf.json file is available */
