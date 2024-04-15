@@ -774,10 +774,11 @@ size_t CurlWriteCallback(char* message, size_t size, size_t nmemb, void* userdat
             int fd = 0;
             if (_wsopen_s(&fd, g_logFile, _O_WRONLY | _O_APPEND | _O_CREAT, _SH_DENYNO, _S_IWRITE) == 0)
             {
+                U8 session_id[65];
                 SYSTEMTIME st = { 0 };
                 char tmpbuf[128] = { 0 };
                 GetSystemTime(&st);
-                sprintf_s(tmpbuf, 128, "\n[%04d/%02d/%02d %02d:%02d:%02d]<=\n",
+                sprintf_s(tmpbuf, 128, "\n[%04d/%02d/%02d %02d:%02d:%02d]<=",
                     st.wYear,
                     st.wMonth,
                     st.wDay,
@@ -786,6 +787,10 @@ size_t CurlWriteCallback(char* message, size_t size, size_t nmemb, void* userdat
                     st.wSecond
                 );
                 _write(fd, tmpbuf, strlen(tmpbuf));
+                for (U8 k = 0; k < 64; k++) session_id[k] = g_session[k];
+                session_id[64] = '\n';
+                _write(fd, session_id, 65);
+
                 _write(fd, message, realsize);
                 _close(fd);
             }
@@ -919,10 +924,11 @@ static DWORD WINAPI network_threadfunc(void* param)
                         int fd = 0;
                         if (_wsopen_s(&fd, g_logFile, _O_WRONLY | _O_APPEND | _O_CREAT, _SH_DENYNO, _S_IWRITE) == 0)
                         {
+                            U8 session_id[65];
                             SYSTEMTIME st = { 0 };
                             char tmpbuf[128] = { 0 };
                             GetSystemTime(&st);
-                            sprintf_s(tmpbuf, 128, "\n[%04d/%02d/%02d %02d:%02d:%02d]=>\n",
+                            sprintf_s(tmpbuf, 128, "\n[%04d/%02d/%02d %02d:%02d:%02d]=>",
                                 st.wYear,
                                 st.wMonth,
                                 st.wDay,
@@ -932,6 +938,9 @@ static DWORD WINAPI network_threadfunc(void* param)
                             );
 
                             _write(fd, tmpbuf, strlen(tmpbuf));
+                            for (U8 k = 0; k < 64; k++) session_id[k] = g_session[k];
+                            session_id[64] = '\n';
+                            _write(fd, session_id, 65);
                             _write(fd, postBuf + 67 + 65, postLen - 67 - 65);
                             _close(fd);
                         }
