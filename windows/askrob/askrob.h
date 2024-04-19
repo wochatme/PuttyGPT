@@ -575,7 +575,11 @@ static LRESULT CALLBACK AskRobWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
         }
         return 0;
     case WM_NETWORK_STATUS :
-        InvalidateRect(hWnd, &rcPaint, FALSE); /* update the network status LED light */
+/*
+        InvalidateRect(hWnd, &rcPaint, FALSE); 
+*/        
+        /* update the network status LED light */
+
         return 0;
     case WM_BRING_TO_FRONT :
         SetForegroundWindow(hWnd);

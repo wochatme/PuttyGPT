@@ -2561,7 +2561,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
             break;
           }
           case IDM_COPYALL:
+#ifdef NDEBUG
             term_copyall(term, clips_system, lenof(clips_system));
+#else
+            term_copy_current_screen(term, clips_system, lenof(clips_system));
+#endif
             break;
           case IDM_COPY:
             term_request_copy(term, clips_system, lenof(clips_system));
